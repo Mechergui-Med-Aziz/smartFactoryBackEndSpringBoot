@@ -8,6 +8,27 @@ spring:
     mongodb:
       uri: mongodb://localhost:27017/smartfactory
       auto-index-creation: true
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+app:
+  mail:
+    from: ${MAIL_FROM:noreply@smartfactory.com}
+
+otp:
+  expiration-minutes: ${OTP_EXPIRATION_MINUTES:10}
+  max-attempts: ${OTP_MAX_ATTEMPTS:5}
+  resend-delay-seconds: ${OTP_RESEND_DELAY_SECONDS:60}
+  reset-token-expiration-minutes: ${RESET_TOKEN_EXPIRATION_MINUTES:15}
 
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970337336763979244226452948404D6351655468576D5A7134743777217A25432A

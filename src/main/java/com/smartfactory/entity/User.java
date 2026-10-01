@@ -27,6 +27,7 @@ public class User {
 
     private Role role;
     private String status = "ACTIVE"; // ACTIVE, INACTIVE
+    private boolean emailVerified = true;
 
     @CreatedDate
     private Instant createdAt;
@@ -100,6 +101,14 @@ public class User {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
     }
 
     public Instant getCreatedAt() {

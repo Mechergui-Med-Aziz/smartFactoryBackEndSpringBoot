@@ -58,6 +58,12 @@ public class SecurityConfig {
                         // Public endpoints
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/logout").permitAll()
+                        .requestMatchers("/api/auth/register").permitAll()
+                        .requestMatchers("/api/auth/verify-email").permitAll()
+                        .requestMatchers("/api/auth/resend-verification").permitAll()
+                        .requestMatchers("/api/auth/forgot-password").permitAll()
+                        .requestMatchers("/api/auth/verify-reset-otp").permitAll()
+                        .requestMatchers("/api/auth/reset-password").permitAll()
 
                         // User management - ADMIN only
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
