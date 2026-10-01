@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: smartfactory-backend
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/smartfactory
+      auto-index-creation: true
+
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970337336763979244226452948404D6351655468576D5A7134743777217A25432A
+  expiration-ms: 86400000 # 24h
+
+logging:
+  level:
+    root: INFO
+    com.smartfactory: DEBUG
