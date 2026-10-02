@@ -67,6 +67,18 @@ public class UserService {
         return userMapper.toResponse(saved);
     }
 
+    public UserResponse updatePassword(String id, String newPassword,String oldPassword) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found with id: " + id));
+
+                if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Old password is incorrect");
+                }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        User updated = userRepository.save(user);
+        return userMapper.toResponse(updated);
+    }
+
     public UserResponse updateUser(String id, UpdateUserRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found with id: " + id));

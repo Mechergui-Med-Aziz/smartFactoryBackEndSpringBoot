@@ -30,8 +30,7 @@ public class UserController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "createdAt,desc") String sort
-    ) {
+            @RequestParam(defaultValue = "createdAt,desc") String sort) {
         int boundedSize = Math.max(1, Math.min(size, 100));
         String[] sortParts = sort.split(",");
         Sort.Direction direction = sortParts.length > 1 && "asc".equalsIgnoreCase(sortParts[1])
@@ -59,8 +58,7 @@ public class UserController {
     @PutMapping("/{id}")
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable String id,
-            @Valid @RequestBody UpdateUserRequest request
-    ) {
+            @Valid @RequestBody UpdateUserRequest request) {
         UserResponse response = userService.updateUser(id, request);
         return ResponseEntity.ok(response);
     }
@@ -70,4 +68,14 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/change-password/{id}")
+    public ResponseEntity<Void> changePassword(
+            @PathVariable String id,
+            @RequestParam String newPassword,
+            @RequestParam String oldPassword) {
+        userService.updatePassword(id, newPassword, oldPassword);
+        return ResponseEntity.noContent().build();
+    }
+
 }
