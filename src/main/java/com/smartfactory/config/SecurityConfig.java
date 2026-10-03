@@ -65,6 +65,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/verify-reset-otp").permitAll()
                         .requestMatchers("/api/auth/reset-password").permitAll()
 
+                        // Self-service profile - any authenticated user (must precede /api/users/**)
+                        .requestMatchers(HttpMethod.PUT, "/api/users/me/**").authenticated()
+
                         // User management - ADMIN only
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
 
@@ -79,6 +82,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/zones/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/zones/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/zones/**").authenticated()
+
+                        // Groups: write is ADMIN, read is authenticated
+                        .requestMatchers(HttpMethod.POST, "/api/groups/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/groups/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/groups/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/groups/**").authenticated()
 
                         // Any other request requires authentication
                         .anyRequest().authenticated()

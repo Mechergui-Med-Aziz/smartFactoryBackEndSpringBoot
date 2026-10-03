@@ -22,4 +22,13 @@ public interface UserRepository extends MongoRepository<User, String> {
             "{ 'email': { $regex: ?0, $options: 'i' } } " +
             "] }")
     Page<User> searchUsers(String query, Pageable pageable);
+
+    Page<User> findByRole(com.smartfactory.security.Role role, Pageable pageable);
+
+    @Query("{ 'role': ?1, '$or': [ " +
+            "{ 'firstName': { $regex: ?0, $options: 'i' } }, " +
+            "{ 'lastName': { $regex: ?0, $options: 'i' } }, " +
+            "{ 'email': { $regex: ?0, $options: 'i' } } " +
+            "] }")
+    Page<User> searchUsersByRole(String query, com.smartfactory.security.Role role, Pageable pageable);
 }

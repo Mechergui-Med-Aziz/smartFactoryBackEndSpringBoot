@@ -22,18 +22,31 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final com.smartfactory.repository.GroupRepository groupRepository;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
-                       UserMapper userMapper) {
+                       UserMapper userMapper,
+                       com.smartfactory.repository.GroupRepository groupRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userMapper = userMapper;
+        this.groupRepository = groupRepository;
     }
 
     public PageResponse<UserResponse> getAllUsers(String search, Pageable pageable) {
+        return getAllUsers(search, null, pageable);
+    }
+
+    public PageResponse<UserResponse> getAllUsers(String search, com.smartfactory.security.Role role, Pageable pageable) {
         Page<User> usersPage;
-        if (StringUtils.hasText(search)) {
+        boolean hasSearch = StringUtils.hasText(search);
+
+        if (role != null && hasSearch) {
+            usersPage = userRepository.searchUsersByRole(search.trim(), role, pageable);
+        } else if (role != null) {
+            usersPage = userRepository.findByRole(role, pageable);
+        } else if (hasSearch) {
             usersPage = userRepository.searchUsers(search.trim(), pageable);
         } else {
             usersPage = userRepository.findAll(pageable);
@@ -102,10 +115,42 @@ public class UserService {
         return userMapper.toResponse(updated);
     }
 
+    public UserResponse updateOwnProfile(String userId, UpdateUserRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found"));
+
+        String normalizedEmail = request.getEmail().toLowerCase().trim();
+        if (!user.getEmail().equalsIgnoreCase(normalizedEmail) && userRepository.existsByEmail(normalizedEmail)) {
+            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.USER_ALREADY_EXISTS, "Email is already registered: " + normalizedEmail);
+        }
+
+        user.setFirstName(request.getFirstName().trim());
+        user.setLastName(request.getLastName().trim());
+        user.setEmail(normalizedEmail);
+        // role / status / password deliberately untouched — ADMIN-only via PUT /{id}
+
+        return userMapper.toResponse(userRepository.save(user));
+    }
+
     public void deleteUser(String id) {
         if (!userRepository.existsById(id)) {
             throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found with id: " + id);
         }
+
+        // Clean up group references for data consistency (US10)
+        groupRepository.findByOperatorsContaining(id).forEach(group -> {
+            group.getOperators().remove(id);
+            if (id.equals(group.getSupervisorId())) {
+                group.setSupervisorId(null);
+            }
+            groupRepository.save(group);
+        });
+
+        groupRepository.findBySupervisorId(id).forEach(group -> {
+            group.setSupervisorId(null);
+            groupRepository.save(group);
+        });
+
         userRepository.deleteById(id);
     }
 }
