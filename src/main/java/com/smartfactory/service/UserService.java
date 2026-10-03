@@ -8,6 +8,7 @@ import com.smartfactory.entity.User;
 import com.smartfactory.exception.ApiException;
 import com.smartfactory.exception.ErrorCode;
 import com.smartfactory.mapper.UserMapper;
+import com.smartfactory.repository.GroupRepository;
 import com.smartfactory.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,7 +23,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
-    private final com.smartfactory.repository.GroupRepository groupRepository;
+    private final GroupRepository groupRepository;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
