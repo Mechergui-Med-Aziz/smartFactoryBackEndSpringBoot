@@ -1,45 +1,40 @@
 package com.smartfactory.service;
 
-import com.smartfactory.dto.request.CreateUserRequest;
-import com.smartfactory.dto.request.UpdateUserRequest;
-import com.smartfactory.dto.response.PageResponse;
-import com.smartfactory.dto.response.UserResponse;
 import com.smartfactory.entity.User;
-import com.smartfactory.exception.ApiException;
-import com.smartfactory.exception.ErrorCode;
-import com.smartfactory.mapper.UserMapper;
 import com.smartfactory.repository.GroupRepository;
 import com.smartfactory.repository.UserRepository;
+import com.smartfactory.security.Role;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final UserMapper userMapper;
     private final GroupRepository groupRepository;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
-                       UserMapper userMapper,
-                       com.smartfactory.repository.GroupRepository groupRepository) {
+                       GroupRepository groupRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.userMapper = userMapper;
         this.groupRepository = groupRepository;
     }
 
-    public PageResponse<UserResponse> getAllUsers(String search, Pageable pageable) {
+    public Map<String, Object> getAllUsers(String search, Pageable pageable) {
         return getAllUsers(search, null, pageable);
     }
 
-    public PageResponse<UserResponse> getAllUsers(String search, com.smartfactory.security.Role role, Pageable pageable) {
+    public Map<String, Object> getAllUsers(String search, Role role, Pageable pageable) {
         Page<User> usersPage;
         boolean hasSearch = StringUtils.hasText(search);
 
@@ -52,90 +47,109 @@ public class UserService {
         } else {
             usersPage = userRepository.findAll(pageable);
         }
-        Page<UserResponse> responsePage = usersPage.map(userMapper::toResponse);
-        return PageResponse.of(responsePage);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content", usersPage.getContent());
+        response.put("page", usersPage.getNumber());
+        response.put("size", usersPage.getSize());
+        response.put("totalElements", usersPage.getTotalElements());
+        response.put("totalPages", usersPage.getTotalPages());
+        return response;
     }
 
-    public UserResponse getUserById(String id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found with id: " + id));
-        return userMapper.toResponse(user);
+    public User getUserById(String id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND: User not found with id: " + id));
     }
 
-    public UserResponse createUser(CreateUserRequest request) {
-        String normalizedEmail = request.getEmail().toLowerCase().trim();
+    public User createUser(User user) {
+        String normalizedEmail = user.getEmail() != null ? user.getEmail().toLowerCase().trim() : "";
         if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.USER_ALREADY_EXISTS, "Email is already registered: " + normalizedEmail);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "USER_ALREADY_EXISTS: Email is already registered: " + normalizedEmail);
         }
 
-        User user = new User(
-                request.getFirstName().trim(),
-                request.getLastName().trim(),
-                normalizedEmail,
-                passwordEncoder.encode(request.getPassword()),
-                request.getRole(),
-                StringUtils.hasText(request.getStatus()) ? request.getStatus().toUpperCase().trim() : "ACTIVE"
-        );
+        if (!StringUtils.hasText(user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Password is required");
+        }
+        if (user.getPassword().length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Password must be at least 6 characters");
+        }
+        if (user.getRole() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Role is required");
+        }
 
-        User saved = userRepository.save(user);
-        return userMapper.toResponse(saved);
+        user.setFirstName(user.getFirstName() != null ? user.getFirstName().trim() : null);
+        user.setLastName(user.getLastName() != null ? user.getLastName().trim() : null);
+        user.setEmail(normalizedEmail);
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setStatus(StringUtils.hasText(user.getStatus()) ? user.getStatus().toUpperCase().trim() : "ACTIVE");
+
+        return userRepository.save(user);
     }
 
-    public UserResponse updatePassword(String id, String newPassword,String oldPassword) {
+    public User updatePassword(String id, String newPassword, String oldPassword) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND: User not found with id: " + id));
 
-                if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
-                    throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Old password is incorrect");
-                }
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Old password is incorrect");
+        }
         user.setPassword(passwordEncoder.encode(newPassword));
-        User updated = userRepository.save(user);
-        return userMapper.toResponse(updated);
+        return userRepository.save(user);
     }
 
-    public UserResponse updateUser(String id, UpdateUserRequest request) {
+    public User updateUser(String id, User request) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND: User not found with id: " + id));
 
-        String normalizedEmail = request.getEmail().toLowerCase().trim();
+        String normalizedEmail = request.getEmail() != null ? request.getEmail().toLowerCase().trim() : "";
         if (!user.getEmail().equalsIgnoreCase(normalizedEmail) && userRepository.existsByEmail(normalizedEmail)) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.USER_ALREADY_EXISTS, "Email is already registered: " + normalizedEmail);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "USER_ALREADY_EXISTS: Email is already registered: " + normalizedEmail);
         }
 
-        user.setFirstName(request.getFirstName().trim());
-        user.setLastName(request.getLastName().trim());
+        if (!StringUtils.hasText(request.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Status is required");
+        }
+        if (request.getRole() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Role is required");
+        }
+
+        user.setFirstName(request.getFirstName() != null ? request.getFirstName().trim() : user.getFirstName());
+        user.setLastName(request.getLastName() != null ? request.getLastName().trim() : user.getLastName());
         user.setEmail(normalizedEmail);
         user.setRole(request.getRole());
         user.setStatus(request.getStatus().toUpperCase().trim());
 
         if (StringUtils.hasText(request.getPassword())) {
+            if (request.getPassword().length() < 6) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Password must be at least 6 characters if provided");
+            }
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        User updated = userRepository.save(user);
-        return userMapper.toResponse(updated);
+        return userRepository.save(user);
     }
 
-    public UserResponse updateOwnProfile(String userId, UpdateUserRequest request) {
+    public User updateOwnProfile(String userId, User request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND: User not found"));
 
-        String normalizedEmail = request.getEmail().toLowerCase().trim();
+        String normalizedEmail = request.getEmail() != null ? request.getEmail().toLowerCase().trim() : "";
         if (!user.getEmail().equalsIgnoreCase(normalizedEmail) && userRepository.existsByEmail(normalizedEmail)) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.USER_ALREADY_EXISTS, "Email is already registered: " + normalizedEmail);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "USER_ALREADY_EXISTS: Email is already registered: " + normalizedEmail);
         }
 
-        user.setFirstName(request.getFirstName().trim());
-        user.setLastName(request.getLastName().trim());
+        user.setFirstName(request.getFirstName() != null ? request.getFirstName().trim() : user.getFirstName());
+        user.setLastName(request.getLastName() != null ? request.getLastName().trim() : user.getLastName());
         user.setEmail(normalizedEmail);
         // role / status / password deliberately untouched — ADMIN-only via PUT /{id}
 
-        return userMapper.toResponse(userRepository.save(user));
+        return userRepository.save(user);
     }
 
     public void deleteUser(String id) {
         if (!userRepository.existsById(id)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, "User not found with id: " + id);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND: User not found with id: " + id);
         }
 
         // Clean up group references for data consistency (US10)

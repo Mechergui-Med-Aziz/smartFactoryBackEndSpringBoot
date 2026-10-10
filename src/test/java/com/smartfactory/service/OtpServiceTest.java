@@ -2,8 +2,6 @@ package com.smartfactory.service;
 
 import com.smartfactory.entity.OtpType;
 import com.smartfactory.entity.OtpVerification;
-import com.smartfactory.exception.ApiException;
-import com.smartfactory.exception.ErrorCode;
 import com.smartfactory.repository.OtpRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -88,10 +87,10 @@ class OtpServiceTest {
                 .thenReturn(Optional.of(recentOtp));
 
         assertThatThrownBy(() -> otpService.generateAndSaveOtp("user@smartfactory.com", OtpType.REGISTER))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> {
-                    ApiException apiException = (ApiException) ex;
-                    assertThat(apiException.getCode()).isEqualTo(ErrorCode.OTP_RESEND_TOO_SOON);
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    assertThat(rse.getReason()).contains("OTP_RESEND_TOO_SOON");
                 });
     }
 
@@ -122,8 +121,8 @@ class OtpServiceTest {
                 .thenReturn(Optional.of(verification));
 
         assertThatThrownBy(() -> otpService.verifyEmailOtp("user@smartfactory.com", "999999"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo(ErrorCode.OTP_INVALID));
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("OTP_INVALID"));
 
         assertThat(verification.getAttempts()).isEqualTo(2);
         assertThat(verification.isUsed()).isFalse();
@@ -141,8 +140,8 @@ class OtpServiceTest {
                 .thenReturn(Optional.of(verification));
 
         assertThatThrownBy(() -> otpService.verifyEmailOtp("user@smartfactory.com", "999999"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo(ErrorCode.OTP_MAX_ATTEMPTS));
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("OTP_MAX_ATTEMPTS"));
 
         assertThat(verification.getAttempts()).isEqualTo(5);
         assertThat(verification.isUsed()).isTrue();
@@ -158,8 +157,8 @@ class OtpServiceTest {
                 .thenReturn(Optional.of(verification));
 
         assertThatThrownBy(() -> otpService.verifyEmailOtp("user@smartfactory.com", "123456"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo(ErrorCode.OTP_EXPIRED));
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("OTP_EXPIRED"));
     }
 
     @Test
@@ -173,8 +172,8 @@ class OtpServiceTest {
                 .thenReturn(Optional.of(verification));
 
         assertThatThrownBy(() -> otpService.verifyEmailOtp("user@smartfactory.com", "123456"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo(ErrorCode.OTP_ALREADY_USED));
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("OTP_ALREADY_USED"));
     }
 
     @Test
@@ -213,8 +212,8 @@ class OtpServiceTest {
 
         // Second consume fails
         assertThatThrownBy(() -> otpService.validateAndConsumeResetToken("user@smartfactory.com", "sample-reset-token-123"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo(ErrorCode.RESET_TOKEN_INVALID));
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("RESET_TOKEN_INVALID"));
     }
 
     @Test
@@ -229,7 +228,7 @@ class OtpServiceTest {
                 .thenReturn(Optional.of(verification));
 
         assertThatThrownBy(() -> otpService.validateAndConsumeResetToken("user@smartfactory.com", "expired-token"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo(ErrorCode.RESET_TOKEN_EXPIRED));
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("RESET_TOKEN_EXPIRED"));
     }
 }

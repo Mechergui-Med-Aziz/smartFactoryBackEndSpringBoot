@@ -1,17 +1,7 @@
 package com.smartfactory.service;
 
-import com.smartfactory.dto.request.CreateGroupRequest;
-import com.smartfactory.dto.request.UpdateGroupRequest;
-import com.smartfactory.dto.response.GroupResponse;
-import com.smartfactory.dto.response.PageResponse;
-import com.smartfactory.dto.response.UserResponse;
 import com.smartfactory.entity.Group;
 import com.smartfactory.entity.User;
-import com.smartfactory.exception.ApiException;
-import com.smartfactory.exception.ErrorCode;
-import com.smartfactory.exception.GroupNotFoundException;
-import com.smartfactory.mapper.GroupMapper;
-import com.smartfactory.mapper.UserMapper;
 import com.smartfactory.repository.GroupRepository;
 import com.smartfactory.repository.UserRepository;
 import com.smartfactory.security.Role;
@@ -20,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -29,20 +20,14 @@ public class GroupService {
 
     private final GroupRepository groupRepository;
     private final UserRepository userRepository;
-    private final GroupMapper groupMapper;
-    private final UserMapper userMapper;
 
     public GroupService(GroupRepository groupRepository,
-                        UserRepository userRepository,
-                        GroupMapper groupMapper,
-                        UserMapper userMapper) {
+                        UserRepository userRepository) {
         this.groupRepository = groupRepository;
         this.userRepository = userRepository;
-        this.groupMapper = groupMapper;
-        this.userMapper = userMapper;
     }
 
-    public PageResponse<GroupResponse> getAllGroups(String search, Pageable pageable) {
+    public Map<String, Object> getAllGroups(String search, Pageable pageable) {
         Page<Group> page;
         if (StringUtils.hasText(search)) {
             page = groupRepository.searchGroups(search.trim(), pageable);
@@ -63,46 +48,56 @@ public class GroupService {
             );
         }
 
-        Page<GroupResponse> responsePage = page.map(group -> {
+        page.getContent().forEach(group -> {
             String supervisorName = group.getSupervisorId() != null
                     ? supervisorNameMap.get(group.getSupervisorId())
                     : null;
-            return groupMapper.toResponse(group, supervisorName);
+            group.setSupervisorName(supervisorName);
         });
 
-        return PageResponse.of(responsePage);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content", page.getContent());
+        response.put("page", page.getNumber());
+        response.put("size", page.getSize());
+        response.put("totalElements", page.getTotalElements());
+        response.put("totalPages", page.getTotalPages());
+        return response;
     }
 
-    public GroupResponse getGroupById(String id) {
+    public Group getGroupById(String id) {
         Group group = findGroupOrThrow(id);
         String supervisorName = resolveSupervisorName(group.getSupervisorId());
-        return groupMapper.toResponse(group, supervisorName);
+        group.setSupervisorName(supervisorName);
+        return group;
     }
 
-    public GroupResponse createGroup(CreateGroupRequest request) {
-        String trimmedName = request.getName().trim();
+    public Group createGroup(Group group) {
+        String trimmedName = group.getName() != null ? group.getName().trim() : "";
         if (groupRepository.existsByName(trimmedName)) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.GROUP_ALREADY_EXISTS,
-                    "Group already exists with name: " + trimmedName);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "GROUP_ALREADY_EXISTS: Group already exists with name: " + trimmedName);
         }
 
-        List<String> validatedOperators = validateAndCollectOperators(request.getOperators());
-        String validatedSupervisorId = validateSupervisor(request.getSupervisorId(), validatedOperators);
+        List<String> validatedOperators = validateAndCollectOperators(group.getOperators());
+        String validatedSupervisorId = validateSupervisor(group.getSupervisorId(), validatedOperators);
 
-        Group group = new Group(trimmedName, validatedOperators, validatedSupervisorId);
+        group.setName(trimmedName);
+        group.setOperators(validatedOperators);
+        group.setSupervisorId(validatedSupervisorId);
+
         Group saved = groupRepository.save(group);
-
         String supervisorName = resolveSupervisorName(saved.getSupervisorId());
-        return groupMapper.toResponse(saved, supervisorName);
+        saved.setSupervisorName(supervisorName);
+        return saved;
     }
 
-    public GroupResponse updateGroup(String id, UpdateGroupRequest request) {
+    public Group updateGroup(String id, Group request) {
         Group group = findGroupOrThrow(id);
 
-        String trimmedName = request.getName().trim();
+        String trimmedName = request.getName() != null ? request.getName().trim() : "";
         if (!group.getName().equalsIgnoreCase(trimmedName) && groupRepository.existsByName(trimmedName)) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.GROUP_ALREADY_EXISTS,
-                    "Group already exists with name: " + trimmedName);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "GROUP_ALREADY_EXISTS: Group already exists with name: " + trimmedName);
         }
 
         List<String> validatedOperators = validateAndCollectOperators(request.getOperators());
@@ -114,7 +109,8 @@ public class GroupService {
 
         Group updated = groupRepository.save(group);
         String supervisorName = resolveSupervisorName(updated.getSupervisorId());
-        return groupMapper.toResponse(updated, supervisorName);
+        updated.setSupervisorName(supervisorName);
+        return updated;
     }
 
     public void deleteGroup(String id) {
@@ -123,35 +119,36 @@ public class GroupService {
         groupRepository.deleteById(id);
     }
 
-    public GroupResponse addOperator(String groupId, String userId) {
+    public Group addOperator(String groupId, String userId) {
         Group group = findGroupOrThrow(groupId);
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND,
-                        "Operator not found with id: " + userId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "USER_NOT_FOUND: Operator not found with id: " + userId));
 
         if (user.getRole() != Role.OPERATOR) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_OPERATOR_ROLE,
-                    "User " + userId + " does not have OPERATOR role");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "INVALID_OPERATOR_ROLE: User " + userId + " does not have OPERATOR role");
         }
 
         if (group.getOperators().contains(userId)) {
-            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.OPERATOR_ALREADY_IN_GROUP,
-                    "Operator is already in group: " + userId);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "OPERATOR_ALREADY_IN_GROUP: Operator is already in group: " + userId);
         }
 
         group.getOperators().add(userId);
         Group saved = groupRepository.save(group);
         String supervisorName = resolveSupervisorName(saved.getSupervisorId());
-        return groupMapper.toResponse(saved, supervisorName);
+        saved.setSupervisorName(supervisorName);
+        return saved;
     }
 
-    public GroupResponse removeOperator(String groupId, String userId) {
+    public Group removeOperator(String groupId, String userId) {
         Group group = findGroupOrThrow(groupId);
 
         if (!group.getOperators().contains(userId)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, ErrorCode.OPERATOR_NOT_IN_GROUP,
-                    "Operator not found in group: " + userId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "OPERATOR_NOT_IN_GROUP: Operator not found in group: " + userId);
         }
 
         group.getOperators().remove(userId);
@@ -163,19 +160,20 @@ public class GroupService {
 
         Group saved = groupRepository.save(group);
         String supervisorName = resolveSupervisorName(saved.getSupervisorId());
-        return groupMapper.toResponse(saved, supervisorName);
+        saved.setSupervisorName(supervisorName);
+        return saved;
     }
 
-    public GroupResponse assignSupervisor(String groupId, String supervisorId) {
+    public Group assignSupervisor(String groupId, String supervisorId) {
         Group group = findGroupOrThrow(groupId);
 
         User user = userRepository.findById(supervisorId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND,
-                        "Supervisor not found with id: " + supervisorId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "USER_NOT_FOUND: Supervisor not found with id: " + supervisorId));
 
         if (user.getRole() != Role.OPERATOR && user.getRole() != Role.RESPONSABLE_INDUSTRIEL) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_SUPERVISOR_ROLE,
-                    "User must have role OPERATOR or RESPONSABLE_INDUSTRIEL to supervise a group");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "INVALID_SUPERVISOR_ROLE: User must have role OPERATOR or RESPONSABLE_INDUSTRIEL to supervise a group");
         }
 
         // If supervisor is an operator, ensure membership in group
@@ -186,27 +184,24 @@ public class GroupService {
         group.setSupervisorId(supervisorId);
         Group saved = groupRepository.save(group);
         String supervisorName = user.getFirstName() + " " + user.getLastName();
-        return groupMapper.toResponse(saved, supervisorName);
+        saved.setSupervisorName(supervisorName);
+        return saved;
     }
 
-    public List<UserResponse> getOperatorsByGroupId(String groupId) {
+    public List<User> getOperatorsByGroupId(String groupId) {
         Group group = findGroupOrThrow(groupId);
         if (group.getOperators() == null || group.getOperators().isEmpty()) {
             return Collections.emptyList();
         }
-        return userRepository.findAllById(group.getOperators()).stream()
-                .map(userMapper::toResponse)
-                .collect(Collectors.toList());
+        return userRepository.findAllById(group.getOperators());
     }
 
-    public UserResponse getSupervisorByGroupId(String groupId) {
+    public User getSupervisorByGroupId(String groupId) {
         Group group = findGroupOrThrow(groupId);
         if (!StringUtils.hasText(group.getSupervisorId())) {
             return null;
         }
-        return userRepository.findById(group.getSupervisorId())
-                .map(userMapper::toResponse)
-                .orElse(null);
+        return userRepository.findById(group.getSupervisorId()).orElse(null);
     }
 
     public void cleanUserFromGroups(String userId) {
@@ -228,7 +223,8 @@ public class GroupService {
 
     private Group findGroupOrThrow(String id) {
         return groupRepository.findById(id)
-                .orElseThrow(() -> new GroupNotFoundException("Group not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "GROUP_NOT_FOUND: Group not found with id: " + id));
     }
 
     private List<String> validateAndCollectOperators(List<String> operatorIds) {
@@ -244,11 +240,11 @@ public class GroupService {
 
         for (String opId : distinctIds) {
             User user = userRepository.findById(opId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND,
-                            "Operator not found with id: " + opId));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "USER_NOT_FOUND: Operator not found with id: " + opId));
             if (user.getRole() != Role.OPERATOR) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_OPERATOR_ROLE,
-                        "User " + opId + " does not have OPERATOR role");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "INVALID_OPERATOR_ROLE: User " + opId + " does not have OPERATOR role");
             }
         }
 
@@ -262,12 +258,12 @@ public class GroupService {
 
         String trimmedSupervisorId = supervisorId.trim();
         User user = userRepository.findById(trimmedSupervisorId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND,
-                        "Supervisor not found with id: " + trimmedSupervisorId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "USER_NOT_FOUND: Supervisor not found with id: " + trimmedSupervisorId));
 
         if (user.getRole() != Role.OPERATOR && user.getRole() != Role.RESPONSABLE_INDUSTRIEL) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_SUPERVISOR_ROLE,
-                    "User must have role OPERATOR or RESPONSABLE_INDUSTRIEL to supervise a group");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "INVALID_SUPERVISOR_ROLE: User must have role OPERATOR or RESPONSABLE_INDUSTRIEL to supervise a group");
         }
 
         // If supervisor is an operator, ensure inclusion in group operators

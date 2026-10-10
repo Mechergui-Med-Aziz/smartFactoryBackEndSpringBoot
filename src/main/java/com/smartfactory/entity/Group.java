@@ -1,8 +1,11 @@
 package com.smartfactory.entity;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -17,11 +20,16 @@ public class Group {
     private String id;
 
     @Indexed(unique = true)
+    @NotBlank(message = "Group name is required")
+    @Size(min = 2, max = 100, message = "Group name must be between 2 and 100 characters")
     private String name;
 
     private List<String> operators = new ArrayList<>();
 
     private String supervisorId;
+
+    @Transient
+    private String supervisorName;
 
     @CreatedDate
     private Instant createdAt;
@@ -36,6 +44,18 @@ public class Group {
         this.name = name;
         this.operators = operators != null ? new ArrayList<>(operators) : new ArrayList<>();
         this.supervisorId = supervisorId;
+    }
+
+    public String getSupervisorName() {
+        return supervisorName;
+    }
+
+    public void setSupervisorName(String supervisorName) {
+        this.supervisorName = supervisorName;
+    }
+
+    public int getOperatorCount() {
+        return operators != null ? operators.size() : 0;
     }
 
     public String getId() {

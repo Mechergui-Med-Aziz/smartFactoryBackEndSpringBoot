@@ -1,7 +1,6 @@
 package com.smartfactory.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfactory.dto.request.LoginRequest;
 import com.smartfactory.entity.User;
 import com.smartfactory.repository.UserRepository;
 import com.smartfactory.security.JwtService;
@@ -15,6 +14,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,7 +63,7 @@ class AuthControllerTest {
     @Test
     @DisplayName("US01: Successful login returns 200 with JWT and user profile")
     void testSuccessfulLogin() throws Exception {
-        LoginRequest request = new LoginRequest("john.doe@smartfactory.com", "Password123!");
+        Map<String, String> request = Map.of("email", "john.doe@smartfactory.com", "password", "Password123!");
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -78,7 +79,7 @@ class AuthControllerTest {
     @Test
     @DisplayName("US01: Login with invalid email returns 401 INVALID_CREDENTIALS")
     void testLoginWithWrongEmail() throws Exception {
-        LoginRequest request = new LoginRequest("wrong.email@smartfactory.com", "Password123!");
+        Map<String, String> request = Map.of("email", "wrong.email@smartfactory.com", "password", "Password123!");
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -91,7 +92,7 @@ class AuthControllerTest {
     @Test
     @DisplayName("US01: Login with invalid password returns 401 INVALID_CREDENTIALS")
     void testLoginWithWrongPassword() throws Exception {
-        LoginRequest request = new LoginRequest("john.doe@smartfactory.com", "WrongPassword");
+        Map<String, String> request = Map.of("email", "john.doe@smartfactory.com", "password", "WrongPassword");
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

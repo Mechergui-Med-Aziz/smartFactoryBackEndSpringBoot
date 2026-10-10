@@ -1,8 +1,10 @@
 package com.smartfactory.entity;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -15,11 +17,15 @@ public class Zone {
     private String id;
 
     @Indexed(unique = true)
+    @NotBlank(message = "Zone name is required")
     private String name;
 
     private String description;
 
     private String location;
+
+    @Transient
+    private long machineCount;
 
     @CreatedDate
     private Instant createdAt;
@@ -34,6 +40,14 @@ public class Zone {
         this.name = name;
         this.description = description;
         this.location = location;
+    }
+
+    public long getMachineCount() {
+        return machineCount;
+    }
+
+    public void setMachineCount(long machineCount) {
+        this.machineCount = machineCount;
     }
 
     public String getId() {

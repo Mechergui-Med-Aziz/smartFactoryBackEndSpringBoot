@@ -1,8 +1,6 @@
 package com.smartfactory.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfactory.dto.request.CreateUserRequest;
-import com.smartfactory.dto.request.UpdateUserRequest;
 import com.smartfactory.entity.User;
 import com.smartfactory.repository.UserRepository;
 import com.smartfactory.security.JwtService;
@@ -16,6 +14,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -82,13 +82,13 @@ class UserControllerTest {
     @Test
     @DisplayName("US03 & US04: ADMIN can create a new user with TECHNICIAN role")
     void testAdminCanCreateUser() throws Exception {
-        CreateUserRequest request = new CreateUserRequest(
-                "Lucas",
-                "Martin",
-                "lucas.martin@smartfactory.com",
-                "securePass123",
-                Role.TECHNICIAN,
-                "ACTIVE"
+        Map<String, Object> request = Map.of(
+                "firstName", "Lucas",
+                "lastName", "Martin",
+                "email", "lucas.martin@smartfactory.com",
+                "password", "securePass123",
+                "role", Role.TECHNICIAN,
+                "status", "ACTIVE"
         );
 
         mockMvc.perform(post("/api/users")
@@ -105,7 +105,7 @@ class UserControllerTest {
     @Test
     @DisplayName("US03: Creation fails with 400 when validation fails (invalid email)")
     void testCreateUserValidationFailure() throws Exception {
-        CreateUserRequest request = new CreateUserRequest(
+        User request = new User(
                 "Invalid",
                 "User",
                 "not-an-email",
@@ -125,7 +125,7 @@ class UserControllerTest {
     @Test
     @DisplayName("US03: Creation fails with 409 when email already exists")
     void testCreateUserDuplicateEmail() throws Exception {
-        CreateUserRequest request = new CreateUserRequest(
+        User request = new User(
                 "Duplicate",
                 "Admin",
                 "admin@smartfactory.com",
@@ -164,13 +164,13 @@ class UserControllerTest {
     @Test
     @DisplayName("US03 & US04: ADMIN can update user role and details")
     void testUpdateUser() throws Exception {
-        UpdateUserRequest updateRequest = new UpdateUserRequest(
+        User updateRequest = new User(
                 "UpdatedOperator",
                 "User",
                 "operator.updated@smartfactory.com",
+                null,
                 Role.RESPONSABLE_INDUSTRIEL,
-                "ACTIVE",
-                null
+                "ACTIVE"
         );
 
         mockMvc.perform(put("/api/users/" + operatorUser.getId())

@@ -1,15 +1,7 @@
 package com.smartfactory.service;
 
-import com.smartfactory.dto.request.CreateGroupRequest;
-import com.smartfactory.dto.request.UpdateGroupRequest;
-import com.smartfactory.dto.response.GroupResponse;
-import com.smartfactory.dto.response.PageResponse;
-import com.smartfactory.dto.response.UserResponse;
 import com.smartfactory.entity.Group;
 import com.smartfactory.entity.User;
-import com.smartfactory.exception.ApiException;
-import com.smartfactory.exception.ErrorCode;
-import com.smartfactory.exception.GroupNotFoundException;
 import com.smartfactory.repository.GroupRepository;
 import com.smartfactory.repository.UserRepository;
 import com.smartfactory.security.Role;
@@ -18,8 +10,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,13 +51,13 @@ class GroupServiceTest {
     @Test
     @DisplayName("Create valid group with multiple operators and supervisor")
     void testCreateValidGroup() {
-        CreateGroupRequest request = new CreateGroupRequest(
+        Group request = new Group(
                 "Equipe Alpha",
                 Arrays.asList(operator1.getId(), operator2.getId()),
                 operator1.getId()
         );
 
-        GroupResponse response = groupService.createGroup(request);
+        Group response = groupService.createGroup(request);
 
         assertThat(response.getId()).isNotNull();
         assertThat(response.getName()).isEqualTo("Equipe Alpha");
@@ -80,86 +72,86 @@ class GroupServiceTest {
     void testCreateGroupDuplicateName() {
         groupRepository.save(new Group("Equipe Alpha", List.of(), null));
 
-        CreateGroupRequest request = new CreateGroupRequest("Equipe Alpha", List.of(), null);
+        Group request = new Group("Equipe Alpha", List.of(), null);
 
         assertThatThrownBy(() -> groupService.createGroup(request))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.GROUP_ALREADY_EXISTS);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(rse.getReason()).contains("GROUP_ALREADY_EXISTS");
                 });
     }
 
     @Test
     @DisplayName("Create group with non-existent operator throws USER_NOT_FOUND")
     void testCreateGroupNonExistentOperator() {
-        CreateGroupRequest request = new CreateGroupRequest(
+        Group request = new Group(
                 "Equipe Beta",
                 List.of("non-existent-user-id"),
                 null
         );
 
         assertThatThrownBy(() -> groupService.createGroup(request))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(rse.getReason()).contains("USER_NOT_FOUND");
                 });
     }
 
     @Test
     @DisplayName("Create group with non-OPERATOR user as operator throws INVALID_OPERATOR_ROLE")
     void testCreateGroupInvalidOperatorRole() {
-        CreateGroupRequest request = new CreateGroupRequest(
+        Group request = new Group(
                 "Equipe Gamma",
                 List.of(technician.getId()),
                 null
         );
 
         assertThatThrownBy(() -> groupService.createGroup(request))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.INVALID_OPERATOR_ROLE);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(rse.getReason()).contains("INVALID_OPERATOR_ROLE");
                 });
     }
 
     @Test
     @DisplayName("Create group with non-existent supervisor throws USER_NOT_FOUND")
     void testCreateGroupNonExistentSupervisor() {
-        CreateGroupRequest request = new CreateGroupRequest(
+        Group request = new Group(
                 "Equipe Delta",
                 List.of(operator1.getId()),
                 "non-existent-supervisor-id"
         );
 
         assertThatThrownBy(() -> groupService.createGroup(request))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(rse.getReason()).contains("USER_NOT_FOUND");
                 });
     }
 
     @Test
     @DisplayName("Create group with TECHNICIAN as supervisor throws INVALID_SUPERVISOR_ROLE")
     void testCreateGroupInvalidSupervisorRole() {
-        CreateGroupRequest request = new CreateGroupRequest(
+        Group request = new Group(
                 "Equipe Epsilon",
                 List.of(operator1.getId()),
                 technician.getId()
         );
 
         assertThatThrownBy(() -> groupService.createGroup(request))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.INVALID_SUPERVISOR_ROLE);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(rse.getReason()).contains("INVALID_SUPERVISOR_ROLE");
                 });
     }
 
@@ -168,13 +160,13 @@ class GroupServiceTest {
     void testUpdateExistingGroup() {
         Group group = groupRepository.save(new Group("Equipe Initial", List.of(operator1.getId()), operator1.getId()));
 
-        UpdateGroupRequest request = new UpdateGroupRequest(
+        Group request = new Group(
                 "Equipe Renommée",
                 Arrays.asList(operator1.getId(), operator2.getId()),
                 operator2.getId()
         );
 
-        GroupResponse response = groupService.updateGroup(group.getId(), request);
+        Group response = groupService.updateGroup(group.getId(), request);
 
         assertThat(response.getName()).isEqualTo("Equipe Renommée");
         assertThat(response.getOperators()).containsExactlyInAnyOrder(operator1.getId(), operator2.getId());
@@ -186,10 +178,15 @@ class GroupServiceTest {
     @Test
     @DisplayName("Update non-existent group throws GroupNotFoundException")
     void testUpdateNonExistentGroup() {
-        UpdateGroupRequest request = new UpdateGroupRequest("NonExistent", List.of(), null);
+        Group request = new Group("NonExistent", List.of(), null);
 
         assertThatThrownBy(() -> groupService.updateGroup("invalid-id", request))
-                .isInstanceOf(GroupNotFoundException.class);
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> {
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(rse.getReason()).contains("GROUP_NOT_FOUND");
+                });
     }
 
     @Test
@@ -197,7 +194,7 @@ class GroupServiceTest {
     void testAddOperator() {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(List.of(operator1.getId())), operator1.getId()));
 
-        GroupResponse response = groupService.addOperator(group.getId(), operator2.getId());
+        Group response = groupService.addOperator(group.getId(), operator2.getId());
 
         assertThat(response.getOperators()).containsExactlyInAnyOrder(operator1.getId(), operator2.getId());
         assertThat(response.getOperatorCount()).isEqualTo(2);
@@ -209,10 +206,11 @@ class GroupServiceTest {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(), null));
 
         assertThatThrownBy(() -> groupService.addOperator(group.getId(), "unknown-user"))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(rse.getReason()).contains("USER_NOT_FOUND");
                 });
     }
 
@@ -222,10 +220,11 @@ class GroupServiceTest {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(), null));
 
         assertThatThrownBy(() -> groupService.addOperator(group.getId(), technician.getId()))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.INVALID_OPERATOR_ROLE);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(rse.getReason()).contains("INVALID_OPERATOR_ROLE");
                 });
     }
 
@@ -235,11 +234,11 @@ class GroupServiceTest {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(List.of(operator1.getId())), null));
 
         assertThatThrownBy(() -> groupService.addOperator(group.getId(), operator1.getId()))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.OPERATOR_ALREADY_IN_GROUP);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(rse.getReason()).contains("OPERATOR_ALREADY_IN_GROUP");
                 });
     }
 
@@ -250,7 +249,7 @@ class GroupServiceTest {
                 new ArrayList<>(Arrays.asList(operator1.getId(), operator2.getId())),
                 operator1.getId()));
 
-        GroupResponse response = groupService.removeOperator(group.getId(), operator1.getId());
+        Group response = groupService.removeOperator(group.getId(), operator1.getId());
 
         assertThat(response.getOperators()).containsExactly(operator2.getId());
         assertThat(response.getSupervisorId()).isNull();
@@ -264,10 +263,11 @@ class GroupServiceTest {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(List.of(operator1.getId())), null));
 
         assertThatThrownBy(() -> groupService.removeOperator(group.getId(), operator2.getId()))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.OPERATOR_NOT_IN_GROUP);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(rse.getReason()).contains("OPERATOR_NOT_IN_GROUP");
                 });
     }
 
@@ -276,7 +276,7 @@ class GroupServiceTest {
     void testAssignSupervisor() {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(List.of(operator1.getId())), null));
 
-        GroupResponse response = groupService.assignSupervisor(group.getId(), operator2.getId());
+        Group response = groupService.assignSupervisor(group.getId(), operator2.getId());
 
         assertThat(response.getSupervisorId()).isEqualTo(operator2.getId());
         assertThat(response.getSupervisorName()).isEqualTo("Bob Op");
@@ -290,10 +290,11 @@ class GroupServiceTest {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(List.of(operator1.getId())), null));
 
         assertThatThrownBy(() -> groupService.assignSupervisor(group.getId(), technician.getId()))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> {
-                    ApiException apiEx = (ApiException) e;
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.INVALID_SUPERVISOR_ROLE);
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(rse.getReason()).contains("INVALID_SUPERVISOR_ROLE");
                 });
     }
 
@@ -313,7 +314,12 @@ class GroupServiceTest {
     @DisplayName("Delete non-existent group throws GroupNotFoundException")
     void testDeleteNonExistentGroup() {
         assertThatThrownBy(() -> groupService.deleteGroup("invalid-id"))
-                .isInstanceOf(GroupNotFoundException.class);
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> {
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(rse.getReason()).contains("GROUP_NOT_FOUND");
+                });
     }
 
     @Test
@@ -321,10 +327,10 @@ class GroupServiceTest {
     void testGetOperatorsByGroupId() {
         Group group = groupRepository.save(new Group("Equipe A", Arrays.asList(operator1.getId(), operator2.getId()), null));
 
-        List<UserResponse> operators = groupService.getOperatorsByGroupId(group.getId());
+        List<User> operators = groupService.getOperatorsByGroupId(group.getId());
 
         assertThat(operators).hasSize(2);
-        assertThat(operators).extracting(UserResponse::getEmail)
+        assertThat(operators).extracting(User::getEmail)
                 .containsExactlyInAnyOrder("alice@factory.com", "bob@factory.com");
     }
 
@@ -333,7 +339,7 @@ class GroupServiceTest {
     void testGetSupervisorByGroupId() {
         Group group = groupRepository.save(new Group("Equipe A", List.of(operator1.getId()), operator1.getId()));
 
-        UserResponse supervisor = groupService.getSupervisorByGroupId(group.getId());
+        User supervisor = groupService.getSupervisorByGroupId(group.getId());
 
         assertThat(supervisor).isNotNull();
         assertThat(supervisor.getId()).isEqualTo(operator1.getId());

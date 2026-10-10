@@ -1,8 +1,6 @@
 package com.smartfactory.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfactory.dto.request.CreateMachineRequest;
-import com.smartfactory.dto.request.UpdateMachineRequest;
 import com.smartfactory.entity.Machine;
 import com.smartfactory.entity.MachineCharacteristic;
 import com.smartfactory.entity.MachineStatus;
@@ -89,7 +87,7 @@ class MachineControllerTest {
     @Test
     @DisplayName("US06: ADMIN can create a machine with valid code (RB01)")
     void testAdminCreateMachine() throws Exception {
-        CreateMachineRequest request = new CreateMachineRequest(
+        Machine request = new Machine(
                 "Hydraulic Press",
                 "PRS-001",
                 "Press",
@@ -113,7 +111,7 @@ class MachineControllerTest {
     @Test
     @DisplayName("US06: Machine creation fails with 409 when code is duplicate (RB01)")
     void testCreateMachineDuplicateCode() throws Exception {
-        CreateMachineRequest request = new CreateMachineRequest(
+        Machine request = new Machine(
                 "Duplicate Machine",
                 "CNC-024",
                 "CNC",
@@ -134,7 +132,7 @@ class MachineControllerTest {
     @Test
     @DisplayName("US06: Machine creation fails with 400 when validation fails")
     void testCreateMachineValidationFailure() throws Exception {
-        CreateMachineRequest request = new CreateMachineRequest("", "", "", null, null, null, null);
+        Machine request = new Machine("", "", "", null, null, null, null);
 
         mockMvc.perform(post("/api/machines")
                         .header("Authorization", "Bearer " + adminToken)
@@ -147,7 +145,7 @@ class MachineControllerTest {
     @Test
     @DisplayName("US06: Non-ADMIN cannot create a machine (403 FORBIDDEN)")
     void testOperatorCannotCreateMachine() throws Exception {
-        CreateMachineRequest request = new CreateMachineRequest(
+        Machine request = new Machine(
                 "New Machine",
                 "NMC-001",
                 "Type",
@@ -168,7 +166,7 @@ class MachineControllerTest {
     @Test
     @DisplayName("US07: ADMIN can update a machine")
     void testAdminUpdateMachine() throws Exception {
-        UpdateMachineRequest request = new UpdateMachineRequest(
+        Machine request = new Machine(
                 "Updated CNC Machine",
                 "CNC-024",
                 "CNC Milling High Precision",
@@ -190,7 +188,7 @@ class MachineControllerTest {
     @Test
     @DisplayName("US07: Non-ADMIN cannot update a machine (403 FORBIDDEN)")
     void testOperatorCannotUpdateMachine() throws Exception {
-        UpdateMachineRequest request = new UpdateMachineRequest(
+        Machine request = new Machine(
                 "Updated CNC Machine",
                 "CNC-024",
                 "CNC Milling",

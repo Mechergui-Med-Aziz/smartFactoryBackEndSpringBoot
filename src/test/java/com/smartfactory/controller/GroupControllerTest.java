@@ -1,9 +1,6 @@
 package com.smartfactory.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfactory.dto.request.AssignSupervisorRequest;
-import com.smartfactory.dto.request.CreateGroupRequest;
-import com.smartfactory.dto.request.UpdateGroupRequest;
 import com.smartfactory.entity.Group;
 import com.smartfactory.entity.User;
 import com.smartfactory.repository.GroupRepository;
@@ -23,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -81,7 +79,7 @@ class GroupControllerTest {
     @Test
     @DisplayName("US10: ADMIN can create a group")
     void testCreateGroup() throws Exception {
-        CreateGroupRequest request = new CreateGroupRequest(
+        Group request = new Group(
                 "Equipe Usinage",
                 Arrays.asList(op1.getId(), op2.getId()),
                 op1.getId()
@@ -103,7 +101,7 @@ class GroupControllerTest {
     @Test
     @DisplayName("US10: Validation error on empty group name returns 400")
     void testCreateGroupEmptyName() throws Exception {
-        CreateGroupRequest request = new CreateGroupRequest("", List.of(), null);
+        Group request = new Group("", List.of(), null);
 
         mockMvc.perform(post("/api/groups")
                         .header("Authorization", "Bearer " + adminToken)
@@ -118,7 +116,7 @@ class GroupControllerTest {
     void testCreateGroupDuplicateName() throws Exception {
         groupRepository.save(new Group("Equipe Usinage", List.of(), null));
 
-        CreateGroupRequest request = new CreateGroupRequest("Equipe Usinage", List.of(), null);
+        Group request = new Group("Equipe Usinage", List.of(), null);
 
         mockMvc.perform(post("/api/groups")
                         .header("Authorization", "Bearer " + adminToken)
@@ -133,7 +131,7 @@ class GroupControllerTest {
     void testUpdateGroup() throws Exception {
         Group group = groupRepository.save(new Group("Equipe Initial", List.of(op1.getId()), op1.getId()));
 
-        UpdateGroupRequest request = new UpdateGroupRequest(
+        Group request = new Group(
                 "Equipe Modifiée",
                 Arrays.asList(op1.getId(), op2.getId()),
                 op2.getId()
@@ -153,7 +151,7 @@ class GroupControllerTest {
     @Test
     @DisplayName("US10: Update non-existent group returns 404")
     void testUpdateNonExistentGroup() throws Exception {
-        UpdateGroupRequest request = new UpdateGroupRequest("Equipe A", List.of(), null);
+        Group request = new Group("Equipe A", List.of(), null);
 
         mockMvc.perform(put("/api/groups/non-existent-id")
                         .header("Authorization", "Bearer " + adminToken)
@@ -218,7 +216,7 @@ class GroupControllerTest {
     void testAssignSupervisor() throws Exception {
         Group group = groupRepository.save(new Group("Equipe A", new ArrayList<>(List.of(op1.getId())), null));
 
-        AssignSupervisorRequest request = new AssignSupervisorRequest(op2.getId());
+        Map<String, String> request = Map.of("supervisorId", op2.getId());
 
         mockMvc.perform(put("/api/groups/" + group.getId() + "/supervisor")
                         .header("Authorization", "Bearer " + adminToken)
@@ -283,7 +281,7 @@ class GroupControllerTest {
     @Test
     @DisplayName("US10 RBAC: OPERATOR cannot create group (403 Forbidden)")
     void testOperatorCannotCreateGroup() throws Exception {
-        CreateGroupRequest request = new CreateGroupRequest("Equipe Test", List.of(), null);
+        Group request = new Group("Equipe Test", List.of(), null);
 
         mockMvc.perform(post("/api/groups")
                         .header("Authorization", "Bearer " + operatorToken)
@@ -295,7 +293,7 @@ class GroupControllerTest {
     @Test
     @DisplayName("US10 RBAC: TECHNICIAN cannot create group (403 Forbidden)")
     void testTechnicianCannotCreateGroup() throws Exception {
-        CreateGroupRequest request = new CreateGroupRequest("Equipe Test", List.of(), null);
+        Group request = new Group("Equipe Test", List.of(), null);
 
         mockMvc.perform(post("/api/groups")
                         .header("Authorization", "Bearer " + technicianToken)
@@ -307,7 +305,7 @@ class GroupControllerTest {
     @Test
     @DisplayName("US10 RBAC: RESPONSABLE cannot create group (403 Forbidden)")
     void testResponsableCannotCreateGroup() throws Exception {
-        CreateGroupRequest request = new CreateGroupRequest("Equipe Test", List.of(), null);
+        Group request = new Group("Equipe Test", List.of(), null);
 
         mockMvc.perform(post("/api/groups")
                         .header("Authorization", "Bearer " + responsableToken)

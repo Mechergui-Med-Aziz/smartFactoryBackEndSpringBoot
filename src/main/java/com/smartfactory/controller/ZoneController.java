@@ -1,9 +1,7 @@
 package com.smartfactory.controller;
 
-import com.smartfactory.dto.request.CreateZoneRequest;
-import com.smartfactory.dto.request.UpdateZoneRequest;
-import com.smartfactory.dto.response.MachineResponse;
-import com.smartfactory.dto.response.ZoneResponse;
+import com.smartfactory.entity.Machine;
+import com.smartfactory.entity.Zone;
 import com.smartfactory.service.MachineService;
 import com.smartfactory.service.ZoneService;
 import jakarta.validation.Valid;
@@ -27,31 +25,31 @@ public class ZoneController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ZoneResponse>> getAllZones() {
-        List<ZoneResponse> zones = zoneService.getAllZones();
+    public ResponseEntity<List<Zone>> getAllZones() {
+        List<Zone> zones = zoneService.getAllZones();
         return ResponseEntity.ok(zones);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ZoneResponse> getZoneById(@PathVariable String id) {
-        ZoneResponse response = zoneService.getZoneById(id);
+    public ResponseEntity<Zone> getZoneById(@PathVariable String id) {
+        Zone response = zoneService.getZoneById(id);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ZoneResponse> createZone(@Valid @RequestBody CreateZoneRequest request) {
-        ZoneResponse response = zoneService.createZone(request);
+    public ResponseEntity<Zone> createZone(@Valid @RequestBody Zone zone) {
+        Zone response = zoneService.createZone(zone);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ZoneResponse> updateZone(
+    public ResponseEntity<Zone> updateZone(
             @PathVariable String id,
-            @Valid @RequestBody UpdateZoneRequest request
+            @Valid @RequestBody Zone zone
     ) {
-        ZoneResponse response = zoneService.updateZone(id, request);
+        Zone response = zoneService.updateZone(id, zone);
         return ResponseEntity.ok(response);
     }
 
@@ -64,8 +62,8 @@ public class ZoneController {
 
     // US09: Associate & view machines organized by zone
     @GetMapping("/{id}/machines")
-    public ResponseEntity<List<MachineResponse>> getMachinesByZone(@PathVariable String id) {
-        List<MachineResponse> machines = machineService.getMachinesByZone(id);
+    public ResponseEntity<List<Machine>> getMachinesByZone(@PathVariable String id) {
+        List<Machine> machines = machineService.getMachinesByZone(id);
         return ResponseEntity.ok(machines);
     }
 }

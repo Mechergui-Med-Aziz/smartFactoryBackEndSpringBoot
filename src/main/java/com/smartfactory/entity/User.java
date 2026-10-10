@@ -1,7 +1,9 @@
 package com.smartfactory.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.smartfactory.security.Role;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -16,13 +18,18 @@ public class User {
     @Id
     private String id;
 
+    @NotBlank(message = "First name is required")
     private String firstName;
+
+    @NotBlank(message = "Last name is required")
     private String lastName;
 
     @Indexed(unique = true)
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
     private String email;
 
-    @JsonIgnore
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     private Role role;
@@ -44,7 +51,7 @@ public class User {
         this.email = email;
         this.password = password;
         this.role = role;
-        this.status = status;
+        this.status = status != null ? status : "ACTIVE";
     }
 
     public String getId() {

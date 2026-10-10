@@ -1,11 +1,7 @@
 package com.smartfactory.controller;
 
-import com.smartfactory.dto.request.AssignSupervisorRequest;
-import com.smartfactory.dto.request.CreateGroupRequest;
-import com.smartfactory.dto.request.UpdateGroupRequest;
-import com.smartfactory.dto.response.GroupResponse;
-import com.smartfactory.dto.response.PageResponse;
-import com.smartfactory.dto.response.UserResponse;
+import com.smartfactory.entity.Group;
+import com.smartfactory.entity.User;
 import com.smartfactory.service.GroupService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
@@ -14,9 +10,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/groups")
@@ -29,7 +28,7 @@ public class GroupController {
     }
 
     @GetMapping
-    public ResponseEntity<PageResponse<GroupResponse>> getAllGroups(
+    public ResponseEntity<Map<String, Object>> getAllGroups(
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -42,29 +41,29 @@ public class GroupController {
         Sort sortObj = Sort.by(direction, sortParts[0]);
 
         Pageable pageable = PageRequest.of(page, boundedSize, sortObj);
-        PageResponse<GroupResponse> response = groupService.getAllGroups(search, pageable);
+        Map<String, Object> response = groupService.getAllGroups(search, pageable);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<GroupResponse> getGroupById(@PathVariable String id) {
-        GroupResponse response = groupService.getGroupById(id);
+    public ResponseEntity<Group> getGroupById(@PathVariable String id) {
+        Group response = groupService.getGroupById(id);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<GroupResponse> createGroup(@Valid @RequestBody CreateGroupRequest request) {
-        GroupResponse response = groupService.createGroup(request);
+    public ResponseEntity<Group> createGroup(@Valid @RequestBody Group group) {
+        Group response = groupService.createGroup(group);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<GroupResponse> updateGroup(
+    public ResponseEntity<Group> updateGroup(
             @PathVariable String id,
-            @Valid @RequestBody UpdateGroupRequest request) {
-        GroupResponse response = groupService.updateGroup(id, request);
+            @Valid @RequestBody Group group) {
+        Group response = groupService.updateGroup(id, group);
         return ResponseEntity.ok(response);
     }
 
@@ -77,40 +76,44 @@ public class GroupController {
 
     @PostMapping("/{groupId}/operators/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<GroupResponse> addOperator(
+    public ResponseEntity<Group> addOperator(
             @PathVariable String groupId,
             @PathVariable String userId) {
-        GroupResponse response = groupService.addOperator(groupId, userId);
+        Group response = groupService.addOperator(groupId, userId);
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{groupId}/operators/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<GroupResponse> removeOperator(
+    public ResponseEntity<Group> removeOperator(
             @PathVariable String groupId,
             @PathVariable String userId) {
-        GroupResponse response = groupService.removeOperator(groupId, userId);
+        Group response = groupService.removeOperator(groupId, userId);
         return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{groupId}/supervisor")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<GroupResponse> assignSupervisor(
+    public ResponseEntity<Group> assignSupervisor(
             @PathVariable String groupId,
-            @Valid @RequestBody AssignSupervisorRequest request) {
-        GroupResponse response = groupService.assignSupervisor(groupId, request.getSupervisorId());
+            @RequestBody Map<String, String> request) {
+        String supervisorId = request != null ? request.get("supervisorId") : null;
+        if (!StringUtils.hasText(supervisorId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Supervisor ID is required");
+        }
+        Group response = groupService.assignSupervisor(groupId, supervisorId);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{groupId}/operators")
-    public ResponseEntity<List<UserResponse>> getOperatorsByGroupId(@PathVariable String groupId) {
-        List<UserResponse> operators = groupService.getOperatorsByGroupId(groupId);
+    public ResponseEntity<List<User>> getOperatorsByGroupId(@PathVariable String groupId) {
+        List<User> operators = groupService.getOperatorsByGroupId(groupId);
         return ResponseEntity.ok(operators);
     }
 
     @GetMapping("/{groupId}/supervisor")
-    public ResponseEntity<UserResponse> getSupervisorByGroupId(@PathVariable String groupId) {
-        UserResponse supervisor = groupService.getSupervisorByGroupId(groupId);
+    public ResponseEntity<User> getSupervisorByGroupId(@PathVariable String groupId) {
+        User supervisor = groupService.getSupervisorByGroupId(groupId);
         if (supervisor == null) {
             return ResponseEntity.noContent().build();
         }

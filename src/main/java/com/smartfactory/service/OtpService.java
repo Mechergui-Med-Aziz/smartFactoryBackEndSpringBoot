@@ -2,8 +2,6 @@ package com.smartfactory.service;
 
 import com.smartfactory.entity.OtpType;
 import com.smartfactory.entity.OtpVerification;
-import com.smartfactory.exception.ApiException;
-import com.smartfactory.exception.ErrorCode;
 import com.smartfactory.repository.OtpRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -62,10 +61,9 @@ public class OtpService {
                 Instant canResendAt = latest.getCreatedAt().plusSeconds(resendDelaySeconds);
                 if (Instant.now().isBefore(canResendAt)) {
                     log.warn("Rate limit: OTP requested too soon for {}", normalizedEmail);
-                    throw new ApiException(
+                    throw new ResponseStatusException(
                             HttpStatus.TOO_MANY_REQUESTS,
-                            ErrorCode.OTP_RESEND_TOO_SOON,
-                            "Veuillez patienter " + resendDelaySeconds + " secondes avant de demander un nouveau code."
+                            "OTP_RESEND_TOO_SOON: Veuillez patienter " + resendDelaySeconds + " secondes avant de demander un nouveau code."
                     );
                 }
             }
@@ -126,25 +124,22 @@ public class OtpService {
         String normalizedEmail = email.toLowerCase().trim();
 
         OtpVerification verification = otpRepository.findByEmailAndResetToken(normalizedEmail, resetToken)
-                .orElseThrow(() -> new ApiException(
+                .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        ErrorCode.RESET_TOKEN_INVALID,
-                        "Token de réinitialisation invalide."
+                        "RESET_TOKEN_INVALID: Token de réinitialisation invalide."
                 ));
 
         if (verification.isResetTokenUsed()) {
-            throw new ApiException(
+            throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    ErrorCode.RESET_TOKEN_INVALID,
-                    "Token de réinitialisation déjà utilisé."
+                    "RESET_TOKEN_INVALID: Token de réinitialisation déjà utilisé."
             );
         }
 
         if (verification.getResetTokenExpiresAt() == null || Instant.now().isAfter(verification.getResetTokenExpiresAt())) {
-            throw new ApiException(
+            throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    ErrorCode.RESET_TOKEN_EXPIRED,
-                    "Le token de réinitialisation a expiré."
+                    "RESET_TOKEN_EXPIRED: Le token de réinitialisation a expiré."
             );
         }
 
@@ -157,36 +152,32 @@ public class OtpService {
         String normalizedEmail = email.toLowerCase().trim();
 
         OtpVerification verification = otpRepository.findTopByEmailAndTypeOrderByCreatedAtDesc(normalizedEmail, type)
-                .orElseThrow(() -> new ApiException(
+                .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        ErrorCode.OTP_INVALID,
-                        "Code OTP invalide."
+                        "OTP_INVALID: Code OTP invalide."
                 ));
 
         if (verification.isUsed()) {
             log.warn("OTP verification failed: already used for {}", normalizedEmail);
-            throw new ApiException(
+            throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    ErrorCode.OTP_ALREADY_USED,
-                    "Ce code OTP a déjà été utilisé."
+                    "OTP_ALREADY_USED: Ce code OTP a déjà été utilisé."
             );
         }
 
         if (verification.getAttempts() >= maxAttempts) {
             log.warn("OTP verification failed: max attempts exceeded for {}", normalizedEmail);
-            throw new ApiException(
+            throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    ErrorCode.OTP_MAX_ATTEMPTS,
-                    "Nombre maximal de tentatives dépassé. Veuillez demander un nouveau code."
+                    "OTP_MAX_ATTEMPTS: Nombre maximal de tentatives dépassé. Veuillez demander un nouveau code."
             );
         }
 
         if (Instant.now().isAfter(verification.getExpiresAt())) {
             log.warn("OTP verification failed: expired for {}", normalizedEmail);
-            throw new ApiException(
+            throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    ErrorCode.OTP_EXPIRED,
-                    "Le code OTP a expiré."
+                    "OTP_EXPIRED: Le code OTP a expiré."
             );
         }
 
@@ -196,18 +187,16 @@ public class OtpService {
                 verification.setUsed(true);
                 otpRepository.save(verification);
                 log.warn("OTP verification failed: max attempts reached for {}", normalizedEmail);
-                throw new ApiException(
+                throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        ErrorCode.OTP_MAX_ATTEMPTS,
-                        "Nombre maximal de tentatives dépassé. Veuillez demander un nouveau code."
+                        "OTP_MAX_ATTEMPTS: Nombre maximal de tentatives dépassé. Veuillez demander un nouveau code."
                 );
             }
             otpRepository.save(verification);
             log.warn("OTP verification failed for {}", normalizedEmail);
-            throw new ApiException(
+            throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    ErrorCode.OTP_INVALID,
-                    "Code OTP invalide."
+                    "OTP_INVALID: Code OTP invalide."
             );
         }
 

@@ -1,9 +1,6 @@
 package com.smartfactory.controller;
 
-import com.smartfactory.dto.request.CreateMachineRequest;
-import com.smartfactory.dto.request.UpdateMachineRequest;
-import com.smartfactory.dto.response.MachineResponse;
-import com.smartfactory.dto.response.PageResponse;
+import com.smartfactory.entity.Machine;
 import com.smartfactory.entity.MachineStatus;
 import com.smartfactory.service.MachineService;
 import jakarta.validation.Valid;
@@ -14,9 +11,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/machines")
@@ -29,7 +28,7 @@ public class MachineController {
     }
 
     @GetMapping
-    public ResponseEntity<PageResponse<MachineResponse>> getMachines(
+    public ResponseEntity<Map<String, Object>> getMachines(
             @RequestParam(required = false) String zoneId,
             @RequestParam(required = false) MachineStatus status,
             @RequestParam(required = false) String search,
@@ -45,30 +44,33 @@ public class MachineController {
         Sort sortObj = Sort.by(direction, sortParts[0]);
 
         Pageable pageable = PageRequest.of(page, boundedSize, sortObj);
-        PageResponse<MachineResponse> response = machineService.getAllMachines(zoneId, status, search, pageable);
+        Map<String, Object> response = machineService.getAllMachines(zoneId, status, search, pageable);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<MachineResponse> getMachineById(@PathVariable String id) {
-        MachineResponse response = machineService.getMachineById(id);
+    public ResponseEntity<Machine> getMachineById(@PathVariable String id) {
+        Machine response = machineService.getMachineById(id);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MachineResponse> createMachine(@Valid @RequestBody CreateMachineRequest request) {
-        MachineResponse response = machineService.createMachine(request);
+    public ResponseEntity<Machine> createMachine(@Valid @RequestBody Machine machine) {
+        Machine response = machineService.createMachine(machine);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MachineResponse> updateMachine(
+    public ResponseEntity<Machine> updateMachine(
             @PathVariable String id,
-            @Valid @RequestBody UpdateMachineRequest request
+            @Valid @RequestBody Machine machine
     ) {
-        MachineResponse response = machineService.updateMachine(id, request);
+        if (machine.getStatus() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR: Machine status is required");
+        }
+        Machine response = machineService.updateMachine(id, machine);
         return ResponseEntity.ok(response);
     }
 

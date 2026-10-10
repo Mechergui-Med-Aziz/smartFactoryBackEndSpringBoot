@@ -1,9 +1,6 @@
 package com.smartfactory.controller;
 
-import com.smartfactory.dto.request.CreateUserRequest;
-import com.smartfactory.dto.request.UpdateUserRequest;
-import com.smartfactory.dto.response.PageResponse;
-import com.smartfactory.dto.response.UserResponse;
+import com.smartfactory.entity.User;
 import com.smartfactory.security.Role;
 import com.smartfactory.security.UserPrincipal;
 import com.smartfactory.service.UserService;
@@ -17,6 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -29,7 +28,7 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<PageResponse<UserResponse>> getUsers(
+    public ResponseEntity<Map<String, Object>> getUsers(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Role role,
             @RequestParam(defaultValue = "0") int page,
@@ -43,30 +42,30 @@ public class UserController {
         Sort sortObj = Sort.by(direction, sortParts[0]);
 
         Pageable pageable = PageRequest.of(page, boundedSize, sortObj);
-        PageResponse<UserResponse> response = userService.getAllUsers(search, role, pageable);
+        Map<String, Object> response = userService.getAllUsers(search, role, pageable);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable String id) {
-        UserResponse response = userService.getUserById(id);
+    public ResponseEntity<User> getUserById(@PathVariable String id) {
+        User response = userService.getUserById(id);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
-        UserResponse response = userService.createUser(request);
+    public ResponseEntity<User> createUser(@Valid @RequestBody User user) {
+        User response = userService.createUser(user);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> updateUser(
+    public ResponseEntity<User> updateUser(
             @PathVariable String id,
-            @Valid @RequestBody UpdateUserRequest request) {
-        UserResponse response = userService.updateUser(id, request);
+            @Valid @RequestBody User user) {
+        User response = userService.updateUser(id, user);
         return ResponseEntity.ok(response);
     }
 
@@ -90,11 +89,11 @@ public class UserController {
     // Self-service: any authenticated user, identity from JWT (no :id to tamper with)
     @PutMapping("/me")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserResponse> updateOwnProfile(
-            @Valid @RequestBody UpdateUserRequest request,
+    public ResponseEntity<User> updateOwnProfile(
+            @RequestBody User user,
             @AuthenticationPrincipal UserPrincipal principal) {
         // role/status/password in the body are ignored server-side
-        UserResponse response = userService.updateOwnProfile(principal.getId(), request);
+        User response = userService.updateOwnProfile(principal.getId(), user);
         return ResponseEntity.ok(response);
     }
 

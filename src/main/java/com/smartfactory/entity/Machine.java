@@ -1,8 +1,10 @@
 package com.smartfactory.entity;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -16,15 +18,21 @@ public class Machine {
     @Id
     private String id;
 
+    @NotBlank(message = "Machine name is required")
     private String name;
 
     @Indexed(unique = true)
+    @NotBlank(message = "Machine code is required")
     private String code; // RB01 unique business code e.g. CNC-024
 
+    @NotBlank(message = "Machine type is required")
     private String type;
 
     @Indexed
     private String zoneId;
+
+    @Transient
+    private String zoneName;
 
     private MachineStatus status = MachineStatus.IDLE;
 
@@ -121,6 +129,14 @@ public class Machine {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getZoneName() {
+        return zoneName;
+    }
+
+    public void setZoneName(String zoneName) {
+        this.zoneName = zoneName;
     }
 
     public Instant getUpdatedAt() {

@@ -1,8 +1,6 @@
 package com.smartfactory.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfactory.dto.response.ErrorResponse;
-import com.smartfactory.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
@@ -12,6 +10,9 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Component
 public class CustomAccessDeniedHandler implements AccessDeniedHandler {
@@ -26,11 +27,11 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 
-        ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.FORBIDDEN.value(),
-                ErrorCode.FORBIDDEN.name(),
-                "Access is denied: insufficient permissions"
-        );
+        Map<String, Object> errorResponse = new LinkedHashMap<>();
+        errorResponse.put("status", HttpStatus.FORBIDDEN.value());
+        errorResponse.put("code", "FORBIDDEN");
+        errorResponse.put("message", "Access is denied: insufficient permissions");
+        errorResponse.put("timestamp", Instant.now().toString());
 
         objectMapper.writeValue(response.getOutputStream(), errorResponse);
     }

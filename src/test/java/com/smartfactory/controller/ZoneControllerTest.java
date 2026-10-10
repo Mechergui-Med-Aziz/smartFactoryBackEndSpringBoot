@@ -1,8 +1,6 @@
 package com.smartfactory.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfactory.dto.request.CreateZoneRequest;
-import com.smartfactory.dto.request.UpdateZoneRequest;
 import com.smartfactory.entity.Machine;
 import com.smartfactory.entity.MachineStatus;
 import com.smartfactory.entity.User;
@@ -76,7 +74,7 @@ class ZoneControllerTest {
     @Test
     @DisplayName("US09: ADMIN can create a zone")
     void testCreateZone() throws Exception {
-        CreateZoneRequest request = new CreateZoneRequest("Zone B", "Milling Zone", "Hangar 2");
+        Zone request = new Zone("Zone B", "Milling Zone", "Hangar 2");
 
         mockMvc.perform(post("/api/zones")
                         .header("Authorization", "Bearer " + adminToken)
@@ -91,7 +89,7 @@ class ZoneControllerTest {
     @Test
     @DisplayName("US09: Duplicate zone name returns 409 ZONE_ALREADY_EXISTS")
     void testCreateDuplicateZone() throws Exception {
-        CreateZoneRequest request = new CreateZoneRequest("Zone A", "Duplicate", "Hangar 1");
+        Zone request = new Zone("Zone A", "Duplicate", "Hangar 1");
 
         mockMvc.perform(post("/api/zones")
                         .header("Authorization", "Bearer " + adminToken)
@@ -104,7 +102,7 @@ class ZoneControllerTest {
     @Test
     @DisplayName("US09: Non-ADMIN cannot create zone (403 FORBIDDEN)")
     void testOperatorCannotCreateZone() throws Exception {
-        CreateZoneRequest request = new CreateZoneRequest("Zone C", "Packaging", "Hangar 3");
+        Zone request = new Zone("Zone C", "Packaging", "Hangar 3");
 
         mockMvc.perform(post("/api/zones")
                         .header("Authorization", "Bearer " + operatorToken)
@@ -150,7 +148,7 @@ class ZoneControllerTest {
     @Test
     @DisplayName("US09: ADMIN can update a zone")
     void testUpdateZone() throws Exception {
-        UpdateZoneRequest request = new UpdateZoneRequest("Zone A Prime", "Updated Description", "New Location");
+        Zone request = new Zone("Zone A Prime", "Updated Description", "New Location");
 
         mockMvc.perform(put("/api/zones/" + zone1.getId())
                         .header("Authorization", "Bearer " + adminToken)

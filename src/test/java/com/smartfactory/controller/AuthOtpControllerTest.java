@@ -1,7 +1,6 @@
 package com.smartfactory.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfactory.dto.request.*;
 import com.smartfactory.entity.OtpType;
 import com.smartfactory.entity.OtpVerification;
 import com.smartfactory.entity.User;
@@ -21,6 +20,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -63,7 +63,14 @@ class AuthOtpControllerTest {
     @Test
     @DisplayName("REGISTER: Creates unverified user and sends OTP email; login blocked until verified")
     void testRegisterFlow() throws Exception {
-        RegisterRequest registerReq = new RegisterRequest("Alice", "Smith", "alice@smartfactory.com", "Password123!", Role.OPERATOR);
+        Map<String, Object> registerReq = Map.of(
+                "firstName", "Alice",
+                "lastName", "Smith",
+                "email", "alice@smartfactory.com",
+                "password", "Password123!",
+                "role", Role.OPERATOR,
+                "status", "ACTIVE"
+        );
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -81,7 +88,7 @@ class AuthOtpControllerTest {
         assertThat(otp.isUsed()).isFalse();
 
         // Attempting to login before verification returns 403 Forbidden
-        LoginRequest loginReq = new LoginRequest("alice@smartfactory.com", "Password123!");
+        Map<String, String> loginReq = Map.of("email", "alice@smartfactory.com", "password", "Password123!");
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginReq)))
@@ -95,7 +102,14 @@ class AuthOtpControllerTest {
         User existing = new User("Bob", "Brown", "bob@smartfactory.com", passwordEncoder.encode("Pass123!"), Role.OPERATOR, "ACTIVE");
         userRepository.save(existing);
 
-        RegisterRequest registerReq = new RegisterRequest("Bob", "Brown", "bob@smartfactory.com", "Pass123!", Role.OPERATOR);
+        Map<String, Object> registerReq = Map.of(
+                "firstName", "Bob",
+                "lastName", "Brown",
+                "email", "bob@smartfactory.com",
+                "password", "Pass123!",
+                "role", Role.OPERATOR,
+                "status", "ACTIVE"
+        );
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registerReq)))
@@ -116,7 +130,7 @@ class AuthOtpControllerTest {
         otpRepository.save(otpVerification);
 
         // Verify email
-        VerifyEmailRequest verifyReq = new VerifyEmailRequest("charlie@smartfactory.com", rawOtp);
+        Map<String, String> verifyReq = Map.of("email", "charlie@smartfactory.com", "otp", rawOtp);
         mockMvc.perform(post("/api/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyReq)))
@@ -128,7 +142,7 @@ class AuthOtpControllerTest {
         assertThat(updated.isEmailVerified()).isTrue();
 
         // Login now succeeds
-        LoginRequest loginReq = new LoginRequest("charlie@smartfactory.com", "Password123!");
+        Map<String, String> loginReq = Map.of("email", "charlie@smartfactory.com", "password", "Password123!");
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginReq)))
@@ -146,7 +160,7 @@ class AuthOtpControllerTest {
         OtpVerification otpVerification = new OtpVerification("dave@smartfactory.com", passwordEncoder.encode("123456"), OtpType.REGISTER, Instant.now().plusSeconds(600));
         otpRepository.save(otpVerification);
 
-        VerifyEmailRequest verifyReq = new VerifyEmailRequest("dave@smartfactory.com", "999999");
+        Map<String, String> verifyReq = Map.of("email", "dave@smartfactory.com", "otp", "999999");
         mockMvc.perform(post("/api/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyReq)))
@@ -164,7 +178,7 @@ class AuthOtpControllerTest {
         OtpVerification otpVerification = new OtpVerification("eve@smartfactory.com", passwordEncoder.encode("123456"), OtpType.REGISTER, Instant.now().minusSeconds(10));
         otpRepository.save(otpVerification);
 
-        VerifyEmailRequest verifyReq = new VerifyEmailRequest("eve@smartfactory.com", "123456");
+        Map<String, String> verifyReq = Map.of("email", "eve@smartfactory.com", "otp", "123456");
         mockMvc.perform(post("/api/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyReq)))
@@ -179,7 +193,7 @@ class AuthOtpControllerTest {
         user.setEmailVerified(true);
         userRepository.save(user);
 
-        VerifyEmailRequest verifyReq = new VerifyEmailRequest("frank@smartfactory.com", "123456");
+        Map<String, String> verifyReq = Map.of("email", "frank@smartfactory.com", "otp", "123456");
         mockMvc.perform(post("/api/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyReq)))
@@ -199,7 +213,7 @@ class AuthOtpControllerTest {
         oldOtp.setCreatedAt(Instant.now().minusSeconds(70));
         otpRepository.save(oldOtp);
 
-        ResendVerificationRequest resendReq = new ResendVerificationRequest("grace@smartfactory.com");
+        Map<String, String> resendReq = Map.of("email", "grace@smartfactory.com");
         mockMvc.perform(post("/api/auth/resend-verification")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(resendReq)))
@@ -223,7 +237,7 @@ class AuthOtpControllerTest {
         userRepository.save(user);
 
         // 1. Forgot password
-        ForgotPasswordRequest forgotReq = new ForgotPasswordRequest("heidi@smartfactory.com");
+        Map<String, String> forgotReq = Map.of("email", "heidi@smartfactory.com");
         mockMvc.perform(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(forgotReq)))
@@ -237,7 +251,7 @@ class AuthOtpControllerTest {
         otpRepository.save(resetOtp);
 
         // 3. Verify Reset OTP
-        VerifyResetOtpRequest verifyResetReq = new VerifyResetOtpRequest("heidi@smartfactory.com", "654321");
+        Map<String, String> verifyResetReq = Map.of("email", "heidi@smartfactory.com", "otp", "654321");
         String responseContent = mockMvc.perform(post("/api/auth/verify-reset-otp")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyResetReq)))
@@ -249,7 +263,7 @@ class AuthOtpControllerTest {
         String resetToken = objectMapper.readTree(responseContent).get("resetToken").asText();
 
         // 4. Reset Password
-        ResetPasswordRequest resetPassReq = new ResetPasswordRequest("heidi@smartfactory.com", resetToken, "NewSecurePassword456!");
+        Map<String, String> resetPassReq = Map.of("email", "heidi@smartfactory.com", "resetToken", resetToken, "newPassword", "NewSecurePassword456!");
         mockMvc.perform(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(resetPassReq)))
@@ -257,14 +271,14 @@ class AuthOtpControllerTest {
                 .andExpect(jsonPath("$.message", is("Mot de passe réinitialisé avec succès.")));
 
         // 5. Old password no longer works
-        LoginRequest oldLoginReq = new LoginRequest("heidi@smartfactory.com", "OldPassword123!");
+        Map<String, String> oldLoginReq = Map.of("email", "heidi@smartfactory.com", "password", "OldPassword123!");
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(oldLoginReq)))
                 .andExpect(status().isUnauthorized());
 
         // 6. New password works
-        LoginRequest newLoginReq = new LoginRequest("heidi@smartfactory.com", "NewSecurePassword456!");
+        Map<String, String> newLoginReq = Map.of("email", "heidi@smartfactory.com", "password", "NewSecurePassword456!");
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(newLoginReq)))
@@ -282,7 +296,7 @@ class AuthOtpControllerTest {
     @Test
     @DisplayName("FORGOT PASSWORD: Non-existent email returns generic message without error")
     void testForgotPasswordNonExistentEmail() throws Exception {
-        ForgotPasswordRequest forgotReq = new ForgotPasswordRequest("nonexistent@smartfactory.com");
+        Map<String, String> forgotReq = Map.of("email", "nonexistent@smartfactory.com");
         mockMvc.perform(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(forgotReq)))
