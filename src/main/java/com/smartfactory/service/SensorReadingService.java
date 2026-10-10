@@ -67,7 +67,7 @@ public class SensorReadingService {
         try {
             root = objectMapper.readTree(rawPayload);
         } catch (Exception e) {
-            log.warn("Rejected MQTT message: invalid JSON on topic [{}]: {}", topic, e.getMessage());
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: JSON invalide", topic);
             throw new IllegalArgumentException("Invalid JSON payload: " + e.getMessage(), e);
         }
 
@@ -83,12 +83,21 @@ public class SensorReadingService {
         }
 
         // 3. Machine identification (US17 6.1)
+        String payloadMachineCode = root.path("machineCode").asText(null);
         String payloadMachineId = root.path("machineId").asText(null);
-        String machineLookupKey = StringUtils.hasText(payloadMachineId) ? payloadMachineId : topicMachineCode;
+        String effectivePayloadIdentifier = StringUtils.hasText(payloadMachineCode) ? payloadMachineCode : payloadMachineId;
+        String machineLookupKey = StringUtils.hasText(effectivePayloadIdentifier) ? effectivePayloadIdentifier : topicMachineCode;
 
         if (!StringUtils.hasText(machineLookupKey)) {
-            log.warn("Rejected MQTT message: missing machine identifier in topic and payload");
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Identifiant machine manquant", topic);
             throw new IllegalArgumentException("Machine identifier is required");
+        }
+
+        if (StringUtils.hasText(topicMachineCode) && StringUtils.hasText(payloadMachineCode)
+                && !topicMachineCode.equalsIgnoreCase(payloadMachineCode)) {
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Code machine incohérent entre topic [{}] et payload [{}]",
+                    topic, topicMachineCode, payloadMachineCode);
+            throw new IllegalArgumentException("Machine code mismatch between topic and payload");
         }
 
         Machine machine = findMachineByCodeOrId(machineLookupKey).orElse(null);
@@ -97,7 +106,7 @@ public class SensorReadingService {
         }
 
         if (machine == null) {
-            log.warn("Rejected MQTT message: unknown machine [{}] on topic [{}]", machineLookupKey, topic);
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Machine inconnue [{}]", topic, machineLookupKey);
             throw new IllegalArgumentException("Unknown machine: " + machineLookupKey);
         }
 
@@ -108,24 +117,25 @@ public class SensorReadingService {
 
         SensorType effectiveSensorType = payloadSensorType != null ? payloadSensorType : topicSensorType;
         if (effectiveSensorType == null) {
-            log.warn("Rejected MQTT message: invalid sensor type in payload [{}] or topic [{}]", payloadSensorTypeStr, topicSensorStr);
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Type de capteur invalide", topic);
             throw new IllegalArgumentException("Invalid sensor type");
         }
 
         if (payloadSensorType != null && topicSensorType != null && payloadSensorType != topicSensorType) {
-            log.warn("Rejected MQTT message: sensor type mismatch between topic [{}] and payload [{}]", topicSensorType, payloadSensorType);
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Discordance de type de capteur entre topic [{}] et payload [{}]",
+                    topic, topicSensorType, payloadSensorType);
             throw new IllegalArgumentException("Topic sensor type mismatch with payload");
         }
 
         // 5. Value validation (US17 6.4)
         JsonNode valueNode = root.get("value");
         if (valueNode == null || !valueNode.isNumber()) {
-            log.warn("Rejected MQTT message: missing or non-numeric value for machine [{}] sensor [{}]", machine.getCode(), effectiveSensorType);
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Valeur numérique manquante ou invalide", topic);
             throw new IllegalArgumentException("Value must be a valid number");
         }
         double value = valueNode.asDouble();
         if (Double.isNaN(value) || Double.isInfinite(value)) {
-            log.warn("Rejected MQTT message: invalid numerical value (NaN/Infinite) for machine [{}] sensor [{}]", machine.getCode(), effectiveSensorType);
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Valeur non numérique (NaN ou Infinite)", topic);
             throw new IllegalArgumentException("Value cannot be NaN or Infinite");
         }
 
@@ -134,7 +144,7 @@ public class SensorReadingService {
         if (!StringUtils.hasText(unit)) {
             unit = effectiveSensorType.getDefaultUnit();
         } else if (!effectiveSensorType.isValidUnit(unit)) {
-            log.warn("Rejected MQTT message: invalid unit [{}] for sensor type [{}] on machine [{}]", unit, effectiveSensorType, machine.getCode());
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Unité invalide [{}] pour {}", topic, unit, effectiveSensorType);
             throw new IllegalArgumentException("Invalid unit [" + unit + "] for sensor type " + effectiveSensorType);
         }
 
@@ -142,25 +152,25 @@ public class SensorReadingService {
         String timestampStr = root.path("timestamp").asText(null);
         Instant timestamp = parseTimestamp(timestampStr);
         if (timestamp == null) {
-            log.warn("Rejected MQTT message: invalid timestamp [{}] for machine [{}]", timestampStr, machine.getCode());
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Format de timestamp invalide [{}]", topic, timestampStr);
             throw new IllegalArgumentException("Invalid timestamp: " + timestampStr);
         }
 
         // Timestamp policy: reject future timestamps beyond 24h or ancient timestamps older than 30 days
         Instant now = Instant.now();
         if (timestamp.isAfter(now.plus(24, ChronoUnit.HOURS))) {
-            log.warn("Rejected MQTT message: timestamp too far in future [{}] for machine [{}]", timestamp, machine.getCode());
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Timestamp dans le futur [{}]", topic, timestamp);
             throw new IllegalArgumentException("Timestamp is in the future");
         }
         if (timestamp.isBefore(now.minus(30, ChronoUnit.DAYS))) {
-            log.warn("Rejected MQTT message: timestamp too old [{}] for machine [{}]", timestamp, machine.getCode());
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Timestamp trop ancien [{}] (> 30 jours)", topic, timestamp);
             throw new IllegalArgumentException("Timestamp is too old (> 30 days)");
         }
 
         // 8. Sensor identification & Auto-provisioning (US17 6.2)
         Sensor sensor = sensorService.getOrCreateSensor(machine, effectiveSensorType, unit);
         if (!machine.getId().equals(sensor.getMachineId())) {
-            log.warn("Rejected MQTT message: sensor [{}] does not belong to machine [{}]", sensor.getId(), machine.getId());
+            log.warn("MQTT - Message invalide\nTopic: {}\nReason: Sensor [{}] does not belong to machine [{}]", topic, sensor.getId(), machine.getId());
             throw new IllegalArgumentException("Sensor does not belong to machine");
         }
 
@@ -183,6 +193,10 @@ public class SensorReadingService {
         SensorReading savedReading = readingRepository.save(reading);
         log.info("Persisted sensor reading: machine={}, sensor={}, type={}, value={} {}, ts={}",
                 machine.getCode(), sensor.getId(), effectiveSensorType, value, unit, timestamp);
+
+        // Required SLF4J structured log format
+        log.info("MQTT - Message reçu\nTopic: {}\nMachine: {}\nSensor: {}\nValue: {}\nUnit: {}\nTimestamp: {}\nStatus: RECEIVED",
+                topic, machine.getCode(), effectiveSensorType, value, unit, timestampStr != null ? timestampStr : timestamp.toString());
 
         // 11. Update sensor status & lastSeen (US19)
         sensor.setLastSeen(now);

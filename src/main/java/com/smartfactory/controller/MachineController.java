@@ -40,7 +40,7 @@ public class MachineController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort
     ) {
-        int boundedSize = Math.max(1, Math.min(size, 100));
+        int boundedSize = Math.max(1, Math.min(size, 500));
         String[] sortParts = sort.split(",");
         Sort.Direction direction = sortParts.length > 1 && "asc".equalsIgnoreCase(sortParts[1])
                 ? Sort.Direction.ASC
