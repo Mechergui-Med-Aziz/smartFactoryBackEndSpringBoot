@@ -41,7 +41,7 @@ mqtt:
   password: ${MQTT_PASSWORD:}
   topic: ${MQTT_TOPIC:factory/machines/#}
   qos: ${MQTT_QOS:1}
-  auto-startup: ${MQTT_AUTO_STARTUP:true}
+  auto-startup: false
 
 sensor:
   offline-timeout-seconds: ${SENSOR_OFFLINE_TIMEOUT_SECONDS:30}

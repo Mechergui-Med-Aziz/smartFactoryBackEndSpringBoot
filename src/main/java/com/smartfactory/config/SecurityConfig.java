@@ -64,6 +64,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/forgot-password").permitAll()
                         .requestMatchers("/api/auth/verify-reset-otp").permitAll()
                         .requestMatchers("/api/auth/reset-password").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
 
                         // Self-service profile - any authenticated user (must precede /api/users/**)
                         .requestMatchers(HttpMethod.PUT, "/api/users/me/**").authenticated()

@@ -2,7 +2,9 @@ package com.smartfactory.controller;
 
 import com.smartfactory.entity.Machine;
 import com.smartfactory.entity.MachineStatus;
+import com.smartfactory.entity.Sensor;
 import com.smartfactory.service.MachineService;
+import com.smartfactory.service.SensorService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,9 +24,11 @@ import java.util.Map;
 public class MachineController {
 
     private final MachineService machineService;
+    private final SensorService sensorService;
 
-    public MachineController(MachineService machineService) {
+    public MachineController(MachineService machineService, SensorService sensorService) {
         this.machineService = machineService;
+        this.sensorService = sensorService;
     }
 
     @GetMapping
@@ -83,10 +87,9 @@ public class MachineController {
 
     // US08: Machine details & associated sensors
     @GetMapping("/{id}/sensors")
-    public ResponseEntity<List<Object>> getMachineSensors(@PathVariable String id) {
-        // Verify machine exists
-        machineService.getMachineById(id);
-        // Sprint 1 boundary: sensors will be populated in Sprint 2
-        return ResponseEntity.ok(Collections.emptyList());
+    public ResponseEntity<List<Sensor>> getMachineSensors(@PathVariable String id) {
+        Machine machine = machineService.getMachineById(id);
+        List<Sensor> sensors = sensorService.getSensorsByMachine(machine.getId());
+        return ResponseEntity.ok(sensors);
     }
 }
