@@ -1,6 +1,7 @@
 package com.smartfactory.service;
 
 import com.smartfactory.entity.Machine;
+import com.smartfactory.entity.MachineStatus;
 import com.smartfactory.entity.MachineThreshold;
 import com.smartfactory.entity.SensorType;
 import com.smartfactory.repository.MachineRepository;
@@ -34,6 +35,55 @@ public class MachineThresholdService {
      * Évite de requêter MongoDB à chaque mesure reçue par MQTT.
      */
     private final ConcurrentHashMap<String, Map<SensorType, MachineThreshold>> cache = new ConcurrentHashMap<>();
+
+    /**
+     * Seuils appliqués quand la machine est IDLE (ligne arrêtée : moteur coupé,
+     * RPM et courant quasi nuls, température qui redescend).
+     *
+     * Une machine IDLE ne doit PAS être jugée avec ses seuils RUNNING : son RPM
+     * (~0) enfreindrait immédiatement un warningMin RUNNING (~1000), ce qui
+     * déclenche une fausse alerte CRITICAL sur chaque machine arrêtée.
+     *
+     * Ces seuils ne sont JAMAIS persistés — les lignes de la base restent
+     * intactes et reviennent automatiquement dès que la machine quitte IDLE.
+     * Ils viennent de la spec d'IDLE :
+     *   TEMPÉRATURE   warning >= 40 °C    critical >= 55 °C
+     *   VIBRATION     warning >= 2.0 mm/s critical >= 3.5 mm/s
+     *   COURANT       warning >= 2.0 A    critical >= 4.0 A
+     *   RPM           low  warning <= 50  critical <= 20
+     *                 high warning >= 200 critical >= 400
+     */
+    private static final Map<SensorType, MachineThreshold> IDLE_THRESHOLDS = new EnumMap<>(SensorType.class);
+
+    static {
+        IDLE_THRESHOLDS.put(SensorType.TEMPERATURE, idleThreshold(SensorType.TEMPERATURE, null, 40.0, null, 55.0));
+        IDLE_THRESHOLDS.put(SensorType.VIBRATION,   idleThreshold(SensorType.VIBRATION,   null, 2.0,  null, 3.5));
+        IDLE_THRESHOLDS.put(SensorType.CURRENT,     idleThreshold(SensorType.CURRENT,     null, 2.0,  null, 4.0));
+        // RPM est à deux bornes : l'arbre tourne encore (>= 200) OU il est
+        // bloqué près de zéro (<= 50) alors que les autres capteurs indiquent
+        // qu'il devrait tourner.
+        IDLE_THRESHOLDS.put(SensorType.RPM,         idleThreshold(SensorType.RPM,         50.0, 200.0, 20.0, 400.0));
+    }
+
+    /**
+     * Construit un seuil IDLE en mémoire (jamais sauvegardé en base).
+     * Une borne à null signifie "pas de limite de ce côté" — exactement comme
+     * une ligne de seuil unilatérale existante.
+     */
+    private static MachineThreshold idleThreshold(SensorType sensorType,
+                                                  Double warningMin, Double warningMax,
+                                                  Double criticalMin, Double criticalMax) {
+        MachineThreshold threshold = new MachineThreshold();
+        threshold.setSensorType(sensorType);
+        threshold.setWarningMin(warningMin);
+        threshold.setWarningMax(warningMax);
+        threshold.setCriticalMin(criticalMin);
+        threshold.setCriticalMax(criticalMax);
+        threshold.setUnit(sensorType.getDefaultUnit());
+        threshold.setActive(true);
+        threshold.setDescription("Seuil IDLE (machine arrêtée) — non persisté");
+        return threshold;
+    }
 
     public MachineThresholdService(MachineThresholdRepository thresholdRepository,
                                    MachineRepository machineRepository) {
@@ -142,6 +192,16 @@ public class MachineThresholdService {
     public MachineThreshold getThresholdCached(Machine machine, SensorType sensorType) {
         if (machine == null || sensorType == null) {
             return null;
+        }
+
+        // IDLE : la machine est arrêtée (moteur coupé, RPM/courant quasi nuls).
+        // On évalue avec les seuils IDLE ci-dessus, jamais avec les seuils
+        // RUNNING de la base — sinon chaque lecture posée déclencherait une
+        // fausse alerte CRITICAL. Aucune écriture en base : les lignes
+        // d'origine sont intactes et servent de nouveau dès que la machine
+        // quitte IDLE. Le cache n'est pas touché non plus.
+        if (machine.getStatus() == MachineStatus.IDLE) {
+            return IDLE_THRESHOLDS.get(sensorType);
         }
 
         Map<SensorType, MachineThreshold> machineMap = cache.computeIfAbsent(machine.getId(), id -> {
