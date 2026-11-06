@@ -251,4 +251,18 @@ public class MaintenanceController {
         MaintenanceIntervention created = recommendationService.createFromRecommendation(machineId, index, technicianId, username);
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
+
+    /**
+     * Sprint 9 — Suggestions de réparation IA basées sur l'historique d'interventions
+     * de la machine. Utilisé par le technicien dans l'écran de détail d'intervention
+     * pour obtenir des solutions de réparation prédites.
+     */
+    @GetMapping("/fixing-suggestions/{machineId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RESPONSABLE_INDUSTRIEL', 'TECHNICIAN') or (hasAuthority('MAINTENANCE_READ') and !hasRole('OPERATOR'))")
+    public ResponseEntity<List<MaintenanceRecommendationService.FixingSuggestion>> getFixingSuggestions(
+            @PathVariable String machineId) {
+
+        List<MaintenanceRecommendationService.FixingSuggestion> suggestions = recommendationService.generateFixingSuggestions(machineId);
+        return ResponseEntity.ok(suggestions);
+    }
 }

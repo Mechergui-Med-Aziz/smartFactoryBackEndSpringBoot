@@ -66,6 +66,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/reset-password").permitAll()
                         .requestMatchers("/ws/**").permitAll()
 
+                        // Endpoint interne du service IA (machine-to-machine, sécurisé par clé API dans le header)
+                        .requestMatchers(HttpMethod.POST, "/api/anomalies/ai-prediction").permitAll()
+
                         // Self-service profile & catalog - any authenticated user
                         .requestMatchers(HttpMethod.PUT, "/api/users/me/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/permissions/catalog").authenticated()
