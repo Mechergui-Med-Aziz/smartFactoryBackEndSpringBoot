@@ -25,6 +25,14 @@ public class RealtimeMessageService {
     }
 
     /**
+     * Expose le template STOMP pour les services nécessitant une diffusion
+     * vers des topics personnalisés (ex : prédictions IA).
+     */
+    public SimpMessagingTemplate getMessagingTemplate() {
+        return messagingTemplate;
+    }
+
+    /**
      * Broadcasts a persisted sensor reading to WebSocket clients.
      * Sent to /topic/machines/{machineId}/readings and /topic/machines/{machineCode}/readings.
      */

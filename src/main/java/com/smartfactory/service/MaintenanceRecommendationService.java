@@ -232,4 +232,147 @@ public class MaintenanceRecommendationService {
 
         return interventionService.createIntervention(interv, username);
     }
+
+    /**
+     * Sprint 9 — Suggestions de réparation basées sur l'historique des interventions
+     * de la même machine. Analyse les diagnostics, actions et observations des
+     * interventions passées pour proposer des solutions au technicien.
+     */
+    public List<FixingSuggestion> generateFixingSuggestions(String machineIdOrCode) {
+        Machine machine = machineRepository.findByCode(machineIdOrCode)
+                .or(() -> machineRepository.findById(machineIdOrCode))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Machine introuvable : " + machineIdOrCode));
+
+        String machineId = machine.getId();
+        String machineCode = machine.getCode();
+
+        // Récupérer les interventions passées terminées pour cette machine
+        var pastInterventions = interventionRepository.findByMachineId(machineId);
+        List<MaintenanceIntervention> completed = (pastInterventions != null ? pastInterventions : Collections.<MaintenanceIntervention>emptyList())
+                .stream()
+                .filter(i -> "COMPLETED".equalsIgnoreCase(String.valueOf(i.getStatus())))
+                .sorted(Comparator.comparing(MaintenanceIntervention::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+
+        List<FixingSuggestion> suggestions = new ArrayList<>();
+
+        if (completed.isEmpty()) {
+            suggestions.add(new FixingSuggestion(
+                    machineCode, "NO_HISTORY",
+                    "Aucune intervention antérieure trouvée",
+                    "Pas de données historiques pour cette machine. Suivre les procédures standard.",
+                    0.3
+            ));
+            return suggestions;
+        }
+
+        // Analyser les patterns des diagnostics et actions passées
+        Map<String, Integer> diagnosisCounts = new LinkedHashMap<>();
+        Map<String, List<String>> diagnosisActions = new LinkedHashMap<>();
+        Map<String, Double> avgDurations = new LinkedHashMap<>();
+
+        for (MaintenanceIntervention interv : completed) {
+            // Extraire les diagnostics
+            if (interv.getDiagnoses() != null) {
+                for (var diag : interv.getDiagnoses()) {
+                    String key = String.valueOf(diag);
+                    diagnosisCounts.merge(key, 1, Integer::sum);
+                }
+            }
+            // Extraire les actions réalisées
+            if (interv.getActions() != null) {
+                for (var action : interv.getActions()) {
+                    String actionStr = String.valueOf(action);
+                    String type = interv.getType() != null ? interv.getType().name() : "UNKNOWN";
+                    diagnosisActions.computeIfAbsent(type, k -> new ArrayList<>()).add(actionStr);
+                }
+            }
+        }
+
+        // Générer les suggestions basées sur les interventions les plus fréquentes
+        // Regrouper par type d'intervention
+        Map<String, Long> typeCounts = new LinkedHashMap<>();
+        for (MaintenanceIntervention interv : completed) {
+            String type = interv.getType() != null ? interv.getType().name() : "UNKNOWN";
+            typeCounts.merge(type, 1L, Long::sum);
+        }
+
+        // Suggestion basée sur l'intervention la plus récente et réussie
+        MaintenanceIntervention mostRecent = completed.get(0);
+        StringBuilder recentDesc = new StringBuilder();
+        recentDesc.append("Dernière intervention réussie (").append(mostRecent.getType()).append(") : ");
+        if (mostRecent.getTitle() != null) recentDesc.append(mostRecent.getTitle()).append(". ");
+        if (mostRecent.getDescription() != null) {
+            String desc = mostRecent.getDescription();
+            recentDesc.append(desc.length() > 200 ? desc.substring(0, 200) + "…" : desc);
+        }
+
+        suggestions.add(new FixingSuggestion(
+                machineCode, "RECENT_SUCCESS",
+                "Solution basée sur la dernière intervention réussie",
+                recentDesc.toString(),
+                0.85
+        ));
+
+        // Suggestion basée sur la fréquence des types de pannes
+        if (typeCounts.containsKey("CORRECTIVE") && typeCounts.get("CORRECTIVE") > 1) {
+            suggestions.add(new FixingSuggestion(
+                    machineCode, "RECURRING_CORRECTIVE",
+                    String.format("Panne corrective récurrente (%d occurrences)", typeCounts.get("CORRECTIVE")),
+                    "Cette machine nécessite des interventions correctives fréquentes. Vérifier l'usure des composants mécaniques, les roulements et l'alignement de l'arbre moteur.",
+                    0.75
+            ));
+        }
+
+        // Suggestion proactive basée sur les patterns multi-capteurs actuels
+        var multiResult = multiSensorAnalysisService.analyzeMachine(machine);
+        if (multiResult.isMultiSensorAnomaly()) {
+            String pattern = multiResult.getDiagnosisPattern();
+            String suggestion = switch (pattern != null ? pattern : "") {
+                case "MOTOR_STALL" -> "Débloquer le moteur, vérifier l'alimentation et contrôler le démarreur.";
+                case "MECHANICAL_OVERLOAD" -> "Réduire la charge, vérifier les roulements et lubrifier les points de friction.";
+                case "BEARING_WEAR" -> "Remplacer les roulements usés, vérifier l'alignement et la lubrification.";
+                case "RUNAWAY_UNBALANCE" -> "Équilibrer les composants rotatifs et resserrer les fixations.";
+                default -> "Inspection multi-capteurs recommandée : " + multiResult.getExplanation();
+            };
+            suggestions.add(new FixingSuggestion(
+                    machineCode, "MULTI_SENSOR_" + (pattern != null ? pattern : "UNKNOWN"),
+                    "Diagnostic IA multi-capteurs : " + (pattern != null ? pattern.replace("_", " ") : "anomalie"),
+                    suggestion,
+                    0.9
+            ));
+        }
+
+        // Trier par confiance décroissante
+        suggestions.sort(Comparator.comparingDouble(FixingSuggestion::getConfidence).reversed());
+        return suggestions;
+    }
+
+    /**
+     * DTO pour les suggestions de réparation IA (Sprint 9).
+     */
+    public static class FixingSuggestion {
+        private final String machineCode;
+        private final String type;
+        private final String title;
+        private final String description;
+        private final double confidence;
+        private final Instant generatedAt;
+
+        public FixingSuggestion(String machineCode, String type, String title, String description, double confidence) {
+            this.machineCode = machineCode;
+            this.type = type;
+            this.title = title;
+            this.description = description;
+            this.confidence = confidence;
+            this.generatedAt = Instant.now();
+        }
+
+        public String getMachineCode() { return machineCode; }
+        public String getType() { return type; }
+        public String getTitle() { return title; }
+        public String getDescription() { return description; }
+        public double getConfidence() { return confidence; }
+        public Instant getGeneratedAt() { return generatedAt; }
+    }
 }
