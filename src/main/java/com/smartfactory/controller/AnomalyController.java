@@ -1,5 +1,7 @@
 package com.smartfactory.controller;
 
+import com.smartfactory.dto.AiPredictionRequest;
+import com.smartfactory.dto.AiPredictionResponse;
 import com.smartfactory.entity.Anomaly;
 import com.smartfactory.entity.Machine;
 import com.smartfactory.entity.SensorType;
@@ -27,17 +29,20 @@ public class AnomalyController {
     private final MultiSensorAnalysisService multiSensorAnalysisService;
     private final AnomalyScoreService anomalyScoreService;
     private final SensorReadingService sensorReadingService;
+    private final AiPredictionService aiPredictionService;
 
     public AnomalyController(AnomalyService anomalyService,
                              AdvancedAnomalyDetectionService advancedDetectionService,
                              MultiSensorAnalysisService multiSensorAnalysisService,
                              AnomalyScoreService anomalyScoreService,
-                             SensorReadingService sensorReadingService) {
+                             SensorReadingService sensorReadingService,
+                             AiPredictionService aiPredictionService) {
         this.anomalyService = anomalyService;
         this.advancedDetectionService = advancedDetectionService;
         this.multiSensorAnalysisService = multiSensorAnalysisService;
         this.anomalyScoreService = anomalyScoreService;
         this.sensorReadingService = sensorReadingService;
+        this.aiPredictionService = aiPredictionService;
     }
 
     /**
@@ -101,5 +106,28 @@ public class AnomalyController {
         SensorType type = SensorType.fromString(sensorType);
         Machine machine = sensorReadingService.resolveMachine(machineId);
         return ResponseEntity.ok(advancedDetectionService.analyzeSensorBehavior(machine.getId(), type, currentValue));
+    }
+
+    /**
+     * Réception d'une prédiction du modèle IA SmartFactory (Sprint 8 - US AI).
+     *
+     * Endpoint interne utilisé par le service Python d'inférence temps réel
+     * pour transmettre les résultats de classification de panne et détection d'anomalies.
+     * Crée une anomalie (thresholdType=AI_MODEL) et une alerte liée, puis diffuse via WebSocket.
+     *
+     * Sécurité : endpoint permitAll dans SecurityConfig, protégé par clé API
+     * dans le header X-AI-Api-Key (machine-to-machine, pas de JWT nécessaire).
+     */
+    @PostMapping("/ai-prediction")
+    public ResponseEntity<AiPredictionResponse> receiveAiPrediction(
+            @RequestBody AiPredictionRequest request,
+            @RequestHeader(value = "X-AI-Api-Key", required = false) String apiKey) {
+        // Validation de la clé API interne
+        String expectedKey = System.getenv().getOrDefault("SMARTFACTORY_AI_API_KEY", "smartfactory-ai-internal-2024");
+        if (apiKey == null || !apiKey.equals(expectedKey)) {
+            return ResponseEntity.status(403).build();
+        }
+        AiPredictionResponse response = aiPredictionService.processPrediction(request);
+        return ResponseEntity.ok(response);
     }
 }
